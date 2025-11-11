@@ -1,0 +1,311 @@
+================================================================================
+   TUTORIAL: CONFIGURAR CUCHILLO CON COLLIDER DE FILO Y MANGO SEPARADOS
+================================================================================
+
+PROBLEMA: 
+- El cuchillo tiene 1 solo BoxCollider en el mango
+- Al cortar el pescado, detecta la colisión con el mango o la mano (incorrecto)
+- Necesitamos: 1 collider para AGARRAR (mango) y 1 collider para CORTAR (filo)
+
+SOLUCIÓN:
+- Crear un Empty Child para el filo con su propio BoxCollider
+- Ese collider será el que detecta los cortes
+- El collider del mango solo sirve para físicas y agarre
+
+================================================================================
+PARTE 1: CREAR COLLIDER DEL FILO (BladeCollider)
+================================================================================
+
+PASO 1: Abrir el prefab del cuchillo
+-------------------------------------
+1. Ve a la ventana Project (abajo)
+2. Busca tu prefab del cuchillo (Assets/Prefabs o Assets/Models)
+3. Doble click en el prefab → se abre en "Prefab Mode"
+   O arrastra el cuchillo a la escena y selecciónalo en Hierarchy
+
+Tu jerarquía actual probablemente es:
+   Knife
+   └── (mesh del cuchillo con 1 BoxCollider en el mango)
+
+
+PASO 2: Crear Empty GameObject para el filo
+--------------------------------------------
+1. En la ventana Hierarchy, click derecho en "Knife" (el padre)
+2. Selecciona: Create Empty
+3. Se crea "GameObject" como hijo
+4. RENOMBRAR (importante):
+   - Selecciona ese GameObject hijo
+   - En el Inspector (arriba), cambia el nombre a: "BladeCollider"
+   - Presiona Enter para confirmar
+
+Tu jerarquía ahora es:
+   Knife
+   ├── (mesh del cuchillo)
+   └── BladeCollider ← NUEVO
+
+
+PASO 3: Añadir BoxCollider al BladeCollider
+--------------------------------------------
+1. Con "BladeCollider" seleccionado en Hierarchy
+2. En el Inspector, click en "Add Component"
+3. Busca: "Box Collider"
+4. Click en "Box Collider" para añadirlo
+
+Ahora BladeCollider tiene su propio BoxCollider independiente
+
+
+PASO 4: Posicionar y ajustar el collider del filo
+--------------------------------------------------
+1. Con "BladeCollider" seleccionado, mira el Inspector
+2. En el componente "Box Collider" verás:
+   - Center: (X, Y, Z)
+   - Size: (X, Y, Z)
+
+3. Ajusta el Transform y el BoxCollider para que cubra el FILO:
+   
+   Ejemplo (ajusta según tu cuchillo):
+   
+   Transform del BladeCollider:
+   - Position: (0, 0, 0.1)  ← Mueve hacia donde está el filo
+   - Rotation: (0, 0, 0)
+   - Scale: (1, 1, 1)
+   
+   Box Collider del BladeCollider:
+   - Center: (0, 0, 0)
+   - Size: (0.02, 0.01, 0.15)  ← Fino (X), plano (Y), largo (Z)
+   
+   ⚠️  IMPORTANTE: 
+   - El collider debe ser FINO como una hoja
+   - Debe cubrir SOLO la parte del filo (no el mango)
+   - Usa la Scene View para ver el collider verde y ajustarlo visualmente
+
+4. En Scene View:
+   - Verás un cubo verde wireframe → ese es tu collider
+   - Mueve/escala el BladeCollider hasta que coincida con el filo del mesh
+
+
+PASO 5: Configurar el BoxCollider del filo
+-------------------------------------------
+1. Con BladeCollider seleccionado
+2. En el componente "Box Collider":
+   - ☐ Is Trigger: DEJA SIN MARCAR (FALSE)
+   - ⚠️  El pescado ya tiene "Is Trigger = TRUE", no necesitas 2 triggers
+
+3. Deja todo lo demás por defecto
+
+
+PASO 6: Asignar el TAG "Knife" al BladeCollider
+------------------------------------------------
+1. Con "BladeCollider" seleccionado
+2. En el Inspector (arriba), busca el campo "Tag"
+3. Click en "Tag" → desplegable
+4. Si "Knife" NO existe en la lista:
+   
+   4a. Selecciona "Add Tag..."
+   4b. En Tags, click en el "+" 
+   4c. Escribe: "Knife"
+   4d. Guarda (automático)
+   4e. Vuelve a seleccionar "BladeCollider"
+   4f. Ahora en Tag selecciona "Knife"
+
+5. Si "Knife" YA existe:
+   - Simplemente selecciona "Knife" del desplegable
+
+⚠️  MUY IMPORTANTE: 
+   Solo el "BladeCollider" debe tener tag "Knife"
+   El GameObject padre "Knife" NO debe tener ese tag
+   El mango NO debe tener ese tag
+
+
+PASO 7: Verificar configuración del filo
+-----------------------------------------
+Tu BladeCollider debe tener:
+   ✓ Transform posicionado en el filo
+   ✓ Box Collider (fino, largo, plano)
+   ✓ Is Trigger = FALSE
+   ✓ Tag = "Knife"
+
+Tu jerarquía final:
+   Knife (padre)
+   ├── KnifeModel (mesh visual - puede tener otro nombre)
+   │   └── (NO tiene collider de corte aquí)
+   └── BladeCollider (Empty GameObject)
+       └── Components:
+           ├── Transform (posicionado en el filo)
+           └── Box Collider (Tag: "Knife", Is Trigger: FALSE)
+
+
+================================================================================
+PARTE 2: CONFIGURAR COLLIDER DEL MANGO (HandleCollider)
+================================================================================
+
+OPCIÓN A: Si ya tienes un collider en el mango (recomendado)
+-------------------------------------------------------------
+1. Selecciona el GameObject que tiene el mesh del cuchillo (KnifeModel o similar)
+2. Si tiene un BoxCollider:
+   - Verifica que esté alrededor del MANGO (no del filo)
+   - Asegúrate que Tag = "Untagged" (NO "Knife")
+   - Is Trigger = FALSE
+   - Este collider se usa para físicas y para que tu sistema de grab detecte el cuchillo
+
+3. Si este collider cubre todo el cuchillo (mango + filo):
+   - Ajusta el Size y Center para que solo cubra el MANGO
+   - Deja el filo sin collider excepto por el BladeCollider que creamos
+
+
+OPCIÓN B: Si NO tienes collider en el mango (crear uno nuevo)
+--------------------------------------------------------------
+1. Click derecho en "Knife" (padre) → Create Empty
+2. Renombrar a "HandleCollider"
+3. Add Component → Box Collider
+4. Posicionar el collider sobre el mango:
+   
+   Ejemplo:
+   Transform del HandleCollider:
+   - Position: (0, 0, -0.05)  ← Hacia el mango
+   
+   Box Collider:
+   - Center: (0, 0, 0)
+   - Size: (0.03, 0.02, 0.08)  ← Ajusta al tamaño del mango
+   - Is Trigger: FALSE
+   - Tag: Untagged (NO "Knife")
+
+Tu jerarquía quedaría:
+   Knife
+   ├── KnifeModel
+   ├── BladeCollider (Tag: "Knife")
+   └── HandleCollider (Tag: Untagged) ← NUEVO
+
+
+OPCIÓN C: Solo usar el collider existente (más simple)
+-------------------------------------------------------
+Si tu cuchillo ya es agarrable y funciona bien:
+   - Deja el collider del mango como está
+   - Solo añade el BladeCollider
+   - Asegúrate que el collider del mango NO tenga tag "Knife"
+
+
+================================================================================
+PARTE 3: CONFIGURAR GRAB POINTS (OPCIONAL - PARA AGARRE PRECISO)
+================================================================================
+
+Si usas Meta XR Building Blocks y quieres que el cuchillo se agarre por el mango:
+
+PASO 1: Crear GrabPoint del mango
+----------------------------------
+1. Click derecho en "Knife" → Create Empty
+2. Renombrar a "HandleGrabPoint"
+3. Posicionar el Transform en el centro del mango
+   - Position: donde quieras que quede la mano al agarrar
+   - Rotation: ajusta la rotación para que la mano agarre natural
+
+
+PASO 2: Configurar Grab Interactable
+-------------------------------------
+1. Selecciona "Knife" (padre)
+2. En el Inspector, busca el componente "Grab Interactable"
+3. Expande la sección "Optionals"
+4. En "Grab Source" → arrastra "HandleGrabPoint" desde Hierarchy
+
+Esto hace que el cuchillo se agarre siempre por el mango, no por el filo
+
+
+================================================================================
+PARTE 4: PROBAR LA CONFIGURACIÓN
+================================================================================
+
+PASO 1: Guardar cambios
+------------------------
+- Si estás en Prefab Mode: Click en "< AutoSave" (arriba izquierda)
+- Si editaste en la escena: Apply cambios al prefab
+
+
+PASO 2: Configurar el pescado
+------------------------------
+1. Selecciona tu GameObject "PescadoEntero"
+2. Verifica que tenga:
+   - Box Collider con "Is Trigger = TRUE"
+   - ProgressiveCuttingSystem (script)
+3. En ProgressiveCuttingSystem, verifica:
+   - Knife Tag = "Knife"
+
+
+PASO 3: Probar en Play Mode (sin VR aún)
+-----------------------------------------
+1. Pon el cuchillo y el pescado cerca en la escena
+2. Dale Play
+3. En Scene View, mueve manualmente el cuchillo con la herramienta Move (W)
+4. Toca el pescado con el FILO (BladeCollider)
+5. Abre la Console (Window > General > Console)
+6. Deberías ver: "Cortando pescado... 1/3"
+
+Si no funciona:
+   - Verifica que BladeCollider tenga Tag "Knife"
+   - Verifica que el pescado tenga Is Trigger = TRUE
+   - Verifica que ambos GameObjects estén activos
+
+
+PASO 4: Probar con VR (con controladores)
+------------------------------------------
+1. Agarra el cuchillo por el mango
+2. Mueve el FILO hacia el pescado
+3. Deberías sentir vibración y ver "Cortando pescado..." en Console
+4. Repite 3 veces → el pescado desaparece y aparecen cubos
+
+
+PROBLEMAS COMUNES:
+------------------
+❌ "No detecta cortes"
+   → Verifica Tag "Knife" en BladeCollider
+   → Verifica Is Trigger = TRUE en el pescado
+
+❌ "Detecta cortes con el mango o la mano"
+   → El collider del mango NO debe tener Tag "Knife"
+   → Solo BladeCollider tiene Tag "Knife"
+
+❌ "No puedo agarrar el cuchillo"
+   → Verifica que tenga Grab Interactable y Grabbable
+   → Verifica que el collider del mango exista
+
+❌ "El collider del filo está mal posicionado"
+   → En Scene View, usa la herramienta Move (W) para mover BladeCollider
+   → Ajusta manualmente los valores de Transform y Box Collider Size
+
+
+================================================================================
+RESUMEN VISUAL DE LA JERARQUÍA FINAL
+================================================================================
+
+Knife (GameObject padre)
+├── Components en Knife:
+│   ├── Rigidbody (opcional)
+│   ├── Grab Interactable (Meta XR)
+│   └── Grabbable (Meta XR)
+│
+├── KnifeModel (hijo - mesh visual)
+│   ├── Mesh Filter
+│   ├── Mesh Renderer
+│   └── Box Collider (opcional - mango, Tag: Untagged)
+│
+├── BladeCollider (hijo - Empty GameObject)
+│   └── Box Collider
+│       ├── Tag: "Knife" ← ESTE DETECTA CORTES
+│       ├── Is Trigger: FALSE
+│       └── Size: fino, largo, plano
+│
+└── HandleGrabPoint (hijo - Empty opcional)
+    └── Transform posicionado en el mango
+
+
+PescadoEntero (GameObject separado)
+├── Box Collider
+│   └── Is Trigger: TRUE ← DETECTA CUANDO ENTRA BladeCollider
+└── ProgressiveCuttingSystem
+    └── Knife Tag: "Knife"
+
+
+================================================================================
+ARCHIVO CREADO POR: GitHub Copilot
+FECHA: 8 de noviembre de 2025
+PROYECTO: Proyecto2 VR IHC - Cocina Peruana VR
+================================================================================

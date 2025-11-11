@@ -1,0 +1,360 @@
+═══════════════════════════════════════════════════════════════════
+   GUÍA: CONFIGURAR SISTEMA DE CORTE PROGRESIVO
+═══════════════════════════════════════════════════════════════════
+
+OBJETIVO:
+---------
+Cortar el pescado 3 veces con el cuchillo para que se convierta en cubos.
+Experiencia inmersiva con feedback visual y de progreso.
+
+⚠️  IMPORTANTE: JERARQUÍA DEL PESCADO
+--------------------------------------
+El SpawnPoint debe ser HIJO del pescado, NO sobre la tabla.
+Así los cubos aparecen donde está el pescado, incluso si lo mueves.
+
+PescadoEntero (padre - puedes moverlo, agarrarlo)
+├── FishModel (hijo - mesh visible)
+└── SpawnPoint (hijo - Empty, SE MUEVE CON EL PESCADO)
+    └── Aquí aparecen los cubos, RELATIVO al pescado
+
+Si mueves el pescado a la izquierda → SpawnPoint va con él
+Si agarras el pescado → SpawnPoint va contigo
+Si pones el pescado en otra mesa → SpawnPoint va allí
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 1: PREPARAR EL PESCADO
+═══════════════════════════════════════════════════════════════════
+
+1. IMPORTAR MODELO
+------------------
+Assets > Models > Fish.fbx (tu modelo de pescado)
+Arrastrarlo a la escena
+
+
+2. CONFIGURAR GAMEOBJECT PESCADO
+---------------------------------
+Hierarchy > Crear estructura CORRECTA:
+
+PescadoEntero (GameObject principal - puedes moverlo/agarrarlo)
+├── FishModel (hijo - el mesh visual del pescado)
+│   ├── Mesh Filter: Fish.fbx
+│   ├── Mesh Renderer: Material_Pescado
+│   └── NO tiene collider aquí
+│
+├── SpawnPoint (hijo - Empty GameObject)
+│   ├── Position: (0, 0.05, 0) ← RELATIVO al pescado
+│   ├── Rotation: (0, 0, 0)
+│   └── ⚠️  IMPORTANTE: Es HIJO del pescado, se mueve con él
+│
+└── Components en PescadoEntero (padre):
+    ├── Box Collider (Is Trigger: TRUE)
+    ├── Rigidbody (opcional, si quieres moverlo)
+    ├── Grab Interactable (Meta XR - si quieres agarrarlo)
+    ├── Grabbable (Meta XR - si quieres agarrarlo)
+    └── ProgressiveCuttingSystem (Script)
+
+Pasos para crear:
+1. Hierarchy > Create Empty → Nombrar "PescadoEntero"
+2. Arrastra Fish.fbx como HIJO de PescadoEntero → Renombrar "FishModel"
+3. Right-click en PescadoEntero > Create Empty → Renombrar "SpawnPoint"
+4. Posicionar SpawnPoint en (0, 0.05, 0) relativo al padre
+
+
+3. CONFIGURAR COLLIDER
+-----------------------
+Seleccionar PescadoEntero:
+- Add Component > Box Collider
+- Is Trigger: ✓ TRUE (importante para detectar cuchillo)
+- Size: Ajustar para cubrir todo el pescado
+- Center: (0, 0, 0) o ajustar
+
+
+4. CONFIGURAR RIGIDBODY
+------------------------
+Seleccionar PescadoEntero:
+- Add Component > Rigidbody
+- Is Kinematic: ✓ TRUE (para que no se caiga)
+- Use Gravity: ✗ FALSE
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 2: CREAR PREFAB DE CUBO DE PESCADO
+═══════════════════════════════════════════════════════════════════
+
+1. CREAR CUBO PEQUEÑO
+----------------------
+Hierarchy > Create > 3D Object > Cube
+Renombrar: "CuboPescado"
+
+Transform:
+- Position: (0, 0, 0)
+- Rotation: (0, 0, 0)
+- Scale: (0.02, 0.02, 0.02) // 2cm de tamaño
+
+
+2. CONFIGURAR MATERIAL
+----------------------
+Inspector > Mesh Renderer > Materials:
+- Asignar material con color/textura de pescado crudo
+- Ejemplo: Color rosado/blanco
+
+
+3. AÑADIR COMPONENTES
+---------------------
+Seleccionar CuboPescado:
+
+A) Rigidbody:
+   - Mass: 0.05
+   - Use Gravity: true
+   - Collision Detection: Continuous Dynamic
+
+B) Box Collider:
+   - Size: (1, 1, 1) // Ya escalado por el transform
+   - Is Trigger: false
+
+C) GrabInteractable y Grabbable (Meta XR):
+   - Si usas Building Blocks: duplicar el cubo de ejemplo
+   - O añadir manualmente los componentes de agarre
+
+
+4. ASIGNAR TAG
+--------------
+Inspector > Tag > Add Tag:
+- Crear nuevo tag: "FishCube"
+- Asignar a CuboPescado: Tag = "FishCube"
+
+
+5. HACER PREFAB
+---------------
+Arrastrar CuboPescado de Hierarchy a:
+Project > Assets > Prefabs > CuboPescado
+
+Luego ELIMINAR el CuboPescado de la Hierarchy
+(Solo queremos el prefab, no una instancia en escena)
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 3: CONFIGURAR EL CUCHILLO
+═══════════════════════════════════════════════════════════════════
+
+1. ASIGNAR TAG AL CUCHILLO
+---------------------------
+Hierarchy > Seleccionar tu Cuchillo
+Inspector > Tag > "Knife"
+
+Si el tag no existe:
+- Inspector > Tag > Add Tag
+- Crear nuevo: "Knife"
+- Volver al cuchillo y asignarlo
+
+
+2. VERIFICAR COMPONENTES DEL CUCHILLO
+--------------------------------------
+El cuchillo DEBE tener:
+✓ Rigidbody (Is Kinematic: false)
+✓ Collider (Is Trigger: FALSE) // Importante: NO trigger
+✓ GrabInteractable + Grabbable (para agarrarlo)
+✓ Tag: "Knife"
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 4: CONFIGURAR SCRIPT EN PESCADO
+═══════════════════════════════════════════════════════════════════
+
+1. AÑADIR SCRIPT
+----------------
+Hierarchy > Seleccionar PescadoEntero
+Inspector > Add Component > ProgressiveCuttingSystem
+
+
+2. ASIGNAR REFERENCIAS EN INSPECTOR
+------------------------------------
+Con PescadoEntero seleccionado:
+
+[Referencias Visuales]
+├── Fish Model: Arrastrar hijo "FishModel"
+├── Cube Prefabs: 
+│   └── Size: 1
+│   └── Element 0: Arrastrar prefab "CuboPescado" desde Project
+└── Cube Spawn Point: Arrastrar hijo "SpawnPoint"
+
+[Configuración de Corte]
+├── Cuts Needed: 3
+├── Cubes Per Cut: 8
+└── Knife Tag: "Knife"
+
+[Feedback Visual] (Opcional)
+├── Normal Material: Material original del pescado
+├── Cut Material: Material más oscuro (para flash al cortar)
+├── Cut Marks: (dejar vacío por ahora)
+
+[Audio] (Opcional)
+├── Chop Sound: Sonido de cortar (si tienes)
+└── Complete Sound: Sonido de éxito (si tienes)
+
+[Efectos Visuales] (Opcional)
+├── Cut Particles: ParticleSystem (crear más adelante)
+└── Show Cut Marks: ✓ (si quieres marcas visuales)
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 5: TESTING
+═══════════════════════════════════════════════════════════════════
+
+1. PLAY MODE
+------------
+1. Play ▶
+
+2. Agarrar cuchillo con mano derecha
+   - Acercar mano al cuchillo
+   - Apretar trigger
+
+3. Hacer movimiento de corte sobre el pescado:
+   - Pasar el cuchillo por encima del pescado
+   - Debe tocar el collider del pescado
+
+4. Observar feedback:
+   - Primera vez: "Cortando pescado... 1/3"
+   - Segunda vez: "Cortando pescado... 2/3"
+   - Tercera vez: "Cortando pescado... 3/3"
+   - Pescado desaparece
+   - Aparecen 8 cubitos agarrables
+
+5. Agarrar cubitos:
+   - Cada cubo es agarrable individualmente
+   - Se pueden mover a un bowl
+
+
+2. AJUSTES SI NO FUNCIONA
+--------------------------
+PROBLEMA: No detecta corte
+✓ Verificar Tag del cuchillo = "Knife"
+✓ Verificar Collider del pescado Is Trigger = TRUE
+✓ Verificar Collider del cuchillo Is Trigger = FALSE
+✓ Verificar que el cuchillo tiene Rigidbody
+
+PROBLEMA: Corta múltiples veces instantáneamente
+✓ Hay cooldown de 0.5s entre cortes (normal)
+✓ Hacer movimientos de corte lentos y deliberados
+
+PROBLEMA: Cubos no aparecen
+✓ Verificar Cube Prefabs asignado en Inspector
+✓ Verificar Spawn Point posicionado correctamente
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 6: MEJORAS OPCIONALES
+═══════════════════════════════════════════════════════════════════
+
+1. MARCAS VISUALES DE CORTE
+----------------------------
+Crear marcas que aparecen donde se corta:
+
+A) Crear marca de corte:
+   - Hierarchy > Create > 3D Object > Quad
+   - Renombrar: "CutMark_1"
+   - Scale: (0.05, 0.01, 1)
+   - Material: Línea roja o textura de corte
+   - Hacer hijo de FishModel
+   - Position: Donde va la primera marca
+   - Desactivar inicialmente (checkbox off)
+
+B) Duplicar para más marcas:
+   - CutMark_1
+   - CutMark_2
+   - CutMark_3
+
+C) Asignar al script:
+   - Inspector > Cut Marks
+   - Size: 3
+   - Element 0: CutMark_1
+   - Element 1: CutMark_2
+   - Element 2: CutMark_3
+
+
+2. PARTÍCULAS AL CORTAR
+------------------------
+A) Crear ParticleSystem:
+   - Hierarchy > Effects > Particle System
+   - Renombrar: "CutParticles"
+   - Hacer hijo de PescadoEntero
+
+B) Configurar:
+   - Start Lifetime: 0.5
+   - Start Speed: 1
+   - Start Size: 0.01
+   - Start Color: Blanco/Rosa
+   - Emission > Rate: 0 (controlado por script)
+   - Play On Awake: FALSE
+
+C) Asignar al script:
+   - Inspector > Cut Particles: CutParticles
+
+
+3. SONIDOS
+----------
+Importar audio:
+- Assets > Audio > chop.wav (sonido de cortar)
+- Assets > Audio > success.wav (sonido de éxito)
+
+Asignar:
+- Chop Sound: chop.wav
+- Complete Sound: success.wav
+
+
+═══════════════════════════════════════════════════════════════════
+PASO 7: INTEGRACIÓN CON RECIPE MANAGER
+═══════════════════════════════════════════════════════════════════
+
+Si tienes RecipeManager (de tu guía), el script ya notifica:
+RecipeManager.Instance.CompleteStep("CutFish");
+
+Asegúrate de tener ese paso en tu RecipeManager:
+- Step ID: "CutFish"
+- Instruction: "Corta el pescado en cubos"
+
+
+═══════════════════════════════════════════════════════════════════
+RESULTADO FINAL
+═══════════════════════════════════════════════════════════════════
+
+EXPERIENCIA DEL USUARIO:
+1. Ve pescado entero en tabla de picar
+2. Agarra cuchillo
+3. Corta pescado (movimiento natural)
+4. Ve feedback: "1/3", vibración, sonido
+5. Corta segunda vez: "2/3"
+6. Corta tercera vez: "3/3"
+7. Pescado desaparece
+8. Aparecen 8 cubitos perfectos
+9. Puede agarrar cada cubo
+10. Puede moverlos al bowl
+
+INMERSIÓN:
+✓ Proceso realista (3 cortes, no instantáneo)
+✓ Feedback constante (UI, sonido, vibración)
+✓ Transición visual (pescado → cubos)
+✓ Control total del jugador
+
+
+═══════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════
+
+ERROR: "Falta asignar Fish Model"
+→ Asignar el hijo FishModel en Inspector
+
+ERROR: "Falta asignar Cube Prefabs"
+→ Arrastrar prefab CuboPescado al array
+
+ERROR: Cubos caen a través de la mesa
+→ Verificar que mesa tiene collider NO trigger
+
+ERROR: No puedo agarrar los cubos
+→ Verificar que prefab tiene GrabInteractable + Grabbable
+
+ERROR: Corta con cualquier objeto, no solo cuchillo
+→ Verificar Knife Tag en el cuchillo
+
+═══════════════════════════════════════════════════════════════════
