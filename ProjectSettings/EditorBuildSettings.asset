@@ -11,7 +11,7 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/Scenes/CevicheScene.unity
     guid: dfcc2d0ec6de3cd478171fe05624d612
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/LomoSaltadoScene.unity
     guid: 276cad228193b6c47a3de9b451cc6efe
   m_configObjects:
