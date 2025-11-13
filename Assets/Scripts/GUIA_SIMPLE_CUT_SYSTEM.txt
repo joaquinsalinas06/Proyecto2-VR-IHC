@@ -1,0 +1,199 @@
+═══════════════════════════════════════════════════════════════════
+  GUÍA: SISTEMA DE CORTE SIMPLE (SimpleCutSystem)
+═══════════════════════════════════════════════════════════════════
+
+OBJETIVO:
+---------
+Cuando el cuchillo toque el ingrediente:
+  - Pescado → Aparece trozo cortado
+  - Limón → Aparece 2 mitades
+  - Carne → Aparece trozo cortado
+  - Etc.
+
+SUPER SIMPLE: Reemplaza objeto completo por trozos pre-hechos.
+
+
+═══════════════════════════════════════════════════════════════════
+EJEMPLO 1: CORTAR LIMÓN EN 2 MITADES
+═══════════════════════════════════════════════════════════════════
+
+PASO 1: PREPARAR PREFABS DE MITADES DE LIMÓN
+---------------------------------------------
+1. Hierarchy > Create Empty → Nombrar "MitadLimon1"
+2. Arrastrar modelo de mitad 1 como hijo
+3. Add Component > Rigidbody
+   - Mass: 0.03
+   - Use Gravity: true
+4. Add Component > Mesh Collider
+   - Convex: true
+5. (Opcional) Add Component > OVRGrabbable (para agarrar)
+
+6. Repetir para "MitadLimon2"
+
+7. Hacer prefabs:
+   - Arrastrar MitadLimon1 a Assets/Prefabs/
+   - Arrastrar MitadLimon2 a Assets/Prefabs/
+   - Eliminar de Hierarchy
+
+
+PASO 2: CONFIGURAR LIMÓN COMPLETO
+----------------------------------
+1. Hierarchy > Seleccionar tu limón completo
+
+2. Add Component > Box Collider
+   - Is Trigger: ✓ TRUE
+
+3. Add Component > SimpleCutSystem
+
+4. En Inspector > SimpleCutSystem:
+
+   [Referencias]
+   ├── Cut Pieces:
+   │   └── Size: 2
+   │   └── Element 0: MitadLimon1 (prefab)
+   │   └── Element 1: MitadLimon2 (prefab)
+   └── Knife Tag: "Knife"
+
+   [Configuración]
+   ├── Destroy After Cut: ✓
+   ├── Add Physics To Pieces: ✓
+   ├── Pieces Mass: 0.03
+   └── Pieces Are Grabbable: ✓
+
+   [Efectos]
+   └── (Opcional) Sonidos, partículas, etc.
+
+
+PASO 3: LISTO!
+--------------
+▶ Play
+→ Agarrar cuchillo
+→ Tocar el limón
+→ ¡El limón desaparece y aparecen las 2 mitades!
+
+
+═══════════════════════════════════════════════════════════════════
+EJEMPLO 2: CORTAR PESCADO
+═══════════════════════════════════════════════════════════════════
+
+PASO 1: PREPARAR PREFAB DE TROZO PESCADO
+-----------------------------------------
+1. Hierarchy > Create Empty → Nombrar "TrozoPescado"
+2. Arrastrar modelo de trozo como hijo
+3. Add Component > Rigidbody (Mass: 0.05)
+4. Add Component > Mesh Collider (Convex: true)
+5. Hacer prefab y eliminar de Hierarchy
+
+
+PASO 2: CONFIGURAR PESCADO COMPLETO
+------------------------------------
+1. Seleccionar Pescado
+2. Add Component > Box Collider (Is Trigger: ✓)
+3. Add Component > SimpleCutSystem
+
+4. Inspector > SimpleCutSystem:
+   - Cut Pieces: Size = 1
+   - Element 0: TrozoPescado (prefab)
+   - Destroy After Cut: ✓
+
+
+═══════════════════════════════════════════════════════════════════
+EJEMPLO 3: CORTAR CARNE
+═══════════════════════════════════════════════════════════════════
+
+Similar al pescado:
+1. Prefab de trozo cortado
+2. SimpleCutSystem en la carne completa
+3. Asignar trozo en Cut Pieces
+
+
+═══════════════════════════════════════════════════════════════════
+CONFIGURACIÓN DEL CUCHILLO
+═══════════════════════════════════════════════════════════════════
+
+El cuchillo DEBE tener:
+✓ Tag: "Knife"
+✓ Rigidbody (Is Kinematic: false)
+✓ Collider (Is Trigger: FALSE) ← Importante!
+✓ OVRGrabbable (para agarrarlo)
+
+Inspector > Tag > "Knife"
+
+
+═══════════════════════════════════════════════════════════════════
+OPCIONES AVANZADAS
+═══════════════════════════════════════════════════════════════════
+
+SPAWN POINT PERSONALIZADO
+--------------------------
+Si quieres que los trozos aparezcan en posición específica:
+
+1. Hierarchy > Create Empty → Nombrar "SpawnPoint"
+2. Hacerlo hijo del ingrediente
+3. Posicionar donde quieres que aparezcan los trozos
+4. Inspector > SimpleCutSystem > Spawn Point: SpawnPoint
+
+
+SONIDO AL CORTAR
+----------------
+1. Importar audio de corte (Assets/Audio/cut.wav)
+2. Inspector > SimpleCutSystem > Cut Sound: cut.wav
+
+
+PARTÍCULAS AL CORTAR
+--------------------
+1. Hierarchy > Effects > Particle System → "CutParticles"
+2. Configurar partículas pequeñas
+3. Play On Awake: FALSE
+4. Inspector > SimpleCutSystem > Cut Particles: CutParticles
+
+
+═══════════════════════════════════════════════════════════════════
+TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════════
+
+PROBLEMA: No detecta el corte
+✓ Verificar Tag del cuchillo = "Knife"
+✓ Verificar Collider del ingrediente Is Trigger = TRUE
+✓ Verificar Collider del cuchillo Is Trigger = FALSE
+
+PROBLEMA: Los trozos caen a través de la mesa
+✓ Verificar que mesa tiene collider NO trigger
+✓ Verificar Mesh Collider de trozos es Convex
+
+PROBLEMA: No puedo agarrar los trozos
+✓ Añadir OVRGrabbable a los prefabs de trozos
+✓ O descomentar código en SimpleCutSystem.cs línea 145-154
+
+PROBLEMA: Corta múltiples veces instantáneamente
+✓ Hay cooldown de 0.5s (normal)
+✓ Solo corta 1 vez, luego el objeto desaparece
+
+
+═══════════════════════════════════════════════════════════════════
+DIFERENCIAS CON ProgressiveCuttingSystem
+═══════════════════════════════════════════════════════════════════
+
+ProgressiveCuttingSystem:
+- Requiere MÚLTIPLES cortes (1/3, 2/3, 3/3)
+- Al final genera cubos pequeños
+- Más inmersivo, más complejo
+
+SimpleCutSystem:
+- UN solo corte
+- Reemplaza con trozos pre-hechos
+- Más simple, más rápido
+
+
+═══════════════════════════════════════════════════════════════════
+RESUMEN RÁPIDO
+═══════════════════════════════════════════════════════════════════
+
+Para cada ingrediente:
+1. ✅ Crear prefabs de los trozos cortados
+2. ✅ Añadir SimpleCutSystem al ingrediente completo
+3. ✅ Asignar prefabs en Cut Pieces
+4. ✅ Asegurar que ingrediente tiene Trigger Collider
+5. ✅ Asegurar que cuchillo tiene Tag "Knife"
+
+¡LISTO! 🔪
