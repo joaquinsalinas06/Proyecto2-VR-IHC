@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &1981867572138375094
+--- !u!1 &5372073723341289670
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,46 +8,46 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 2285585500019247592}
-  - component: {fileID: 823219309146533509}
-  - component: {fileID: 4770233261516944711}
+  - component: {fileID: 1237533421510293839}
+  - component: {fileID: 3702999310001839458}
+  - component: {fileID: 4153685355862478248}
   m_Layer: 0
-  m_Name: limehalf01
+  m_Name: Aji Trozo
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &2285585500019247592
+--- !u!4 &1237533421510293839
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1981867572138375094}
+  m_GameObject: {fileID: 5372073723341289670}
   serializedVersion: 2
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -0.6322, y: -2.8714, z: -2.6618}
-  m_LocalScale: {x: 0.03348271, y: 0.03348271, z: 0.03348271}
+  m_LocalRotation: {x: -0.18227534, y: 0.83262676, z: 0.41578975, w: -0.31721804}
+  m_LocalPosition: {x: -0.134, y: 1.3929, z: -1.25}
+  m_LocalScale: {x: 1.5062264, y: 1.3412523, z: 0.5131013}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 3756080020969681090}
+  m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!33 &823219309146533509
+--- !u!33 &3702999310001839458
 MeshFilter:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1981867572138375094}
-  m_Mesh: {fileID: -5717003884660365145, guid: 195d447a7b92ff64c981ea202a9443da, type: 3}
---- !u!23 &4770233261516944711
+  m_GameObject: {fileID: 5372073723341289670}
+  m_Mesh: {fileID: -8936622394817868014, guid: 0e8612768c0ce5e4ca52e61f1912e3c5, type: 3}
+--- !u!23 &4153685355862478248
 MeshRenderer:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1981867572138375094}
+  m_GameObject: {fileID: 5372073723341289670}
   m_Enabled: 1
   m_CastShadows: 1
   m_ReceiveShadows: 1
@@ -61,7 +61,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 2c3e5d273f34bb84196e4516811bd7d9, type: 2}
+  - {fileID: 2100000, guid: 2ab353610d4b6304db648401763b6805, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -83,35 +83,3 @@ MeshRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_AdditionalVertexStreams: {fileID: 0}
---- !u!1 &7151526395393697416
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 3756080020969681090}
-  m_Layer: 0
-  m_Name: MitadLimon1
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!4 &3756080020969681090
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7151526395393697416}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.35010692, y: 4.7004676, z: 2.0822413}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children:
-  - {fileID: 2285585500019247592}
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

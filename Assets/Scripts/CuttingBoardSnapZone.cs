@@ -1,45 +1,71 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
-/// Zona de snap para tabla de cortar - Los ingredientes se posicionan automáticamente
-/// al tocar esta zona, con posición y orientación fijas según el tipo de ingrediente
+/// Sistema de snap con pasos bloqueados - Los ingredientes se bloquean al colocarse
+/// y solo se aceptan según el paso actual del proceso de cocina
 /// </summary>
 public class CuttingBoardSnapZone : MonoBehaviour
 {
-    [Header("Referencias Visuales")]
-    [SerializeField] private GameObject visualIndicator; // El visual que ayuda a ver la zona
-
-    [Header("Configuración de Snap")]
-    [SerializeField] private Transform snapPoint; // Punto exacto donde se centra el ingrediente
-    [SerializeField] private bool hideVisualWhenUsed = false; // Ocultar visual cuando hay ingredientes
-    [SerializeField] private bool allowMultipleIngredients = true; // Permitir varios ingredientes
-    [SerializeField] private int maxIngredients = 10; // Máximo de ingredientes permitidos
-
-    [Header("Configuración de Orientación por Ingrediente")]
-    [SerializeField] private IngredientSnapSettings[] ingredientSettings; // Configuración para cada tipo
-
-    [Header("Audio y Feedback")]
-    [SerializeField] private AudioClip snapSound; // Sonido al hacer snap
-    [SerializeField] private bool hapticFeedback = true;
-    [SerializeField] private float hapticIntensity = 0.3f;
-
-    private System.Collections.Generic.List<GameObject> snappedObjects = new System.Collections.Generic.List<GameObject>();
-    private AudioSource audioSource;
-
     [System.Serializable]
     public class IngredientSnapSettings
     {
-        public string ingredientTag; // Tag del ingrediente (ej: "Fish", "Lemon", "Onion")
-        public Vector3 positionOffset; // Offset desde el snapPoint
-        public Vector3 rotation; // Rotación euler en grados
-        public bool useLocalRotation = true; // Usar rotación local o world
+        public string ingredientTag;            // Tag del ingrediente (ej: "Pescado", "Limon", "Cebolla", "Aji")
+        public Vector3 positionOffset;          // Offset desde el snap point
+        public Vector3 rotation;                // Rotación en grados Euler
+        public bool useLocalRotation = true;    // Si true, usa rotación local
     }
+
+    [System.Serializable]
+    public class CuttingStep
+    {
+        public string stepName;                 // Nombre del paso (ej: "Cortar Pescado")
+        public string requiredIngredientTag;    // Tag del ingrediente que se necesita
+
+        [Header("Pedazos Cortados")]
+        public GameObject piecePrefab;          // Prefab del pedazo (cubo, mitad, etc.)
+        public int pieceCount = 10;             // Cantidad de pedazos
+        public Vector3 spawnArea = new Vector3(0.2f, 0.1f, 0.2f); // Área de dispersión
+        public bool randomRotation = true;      // Rotación aleatoria
+
+        [HideInInspector] public bool isPlaced = false;   // Si el ingrediente fue colocado
+        [HideInInspector] public bool isCut = false;      // Si el ingrediente fue cortado
+        [HideInInspector] public GameObject placedObject; // Referencia al objeto colocado
+        [HideInInspector] public CutIngredientPieces cutPieces; // Referencia a los pedazos
+    }
+
+    [Header("Snap Point")]
+    public Transform snapPoint;
+
+    [Header("Ingredient Settings")]
+    public IngredientSnapSettings[] ingredientSettings;
+
+    [Header("Step System - Define el orden de pasos")]
+    public CuttingStep[] cuttingSteps;
+    [HideInInspector] public int currentStep = 0;
+
+    [Header("Visual Feedback")]
+    public GameObject visualIndicator;
+    public Material greenMaterial;              // Material verde = paso correcto
+    public Material redMaterial;                // Material rojo = ingrediente incorrecto
+
+    [Header("Audio Feedback")]
+    public AudioClip snapSound;
+    public AudioClip errorSound;
+    public AudioClip cutCompleteSound;          // Sonido cuando se completa el corte
+
+    [Header("Cut Effects")]
+    public ParticleSystem cutCompleteParticles; // Partículas cuando se corta
+    public GameObject cutCompleteEffectPrefab;  // Efecto visual cuando se libera
+
+    private AudioSource audioSource;
+    private Renderer visualRenderer;
 
     void Start()
     {
         // Configurar AudioSource
         audioSource = GetComponent<AudioSource>();
-        if (audioSource == null && snapSound != null)
+        if (audioSource == null)
         {
             audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
@@ -51,126 +77,108 @@ public class CuttingBoardSnapZone : MonoBehaviour
             snapPoint = transform;
         }
 
-        // Configurar visual inicial
+        // Obtener renderer del visual
+        if (visualIndicator != null)
+        {
+            visualRenderer = visualIndicator.GetComponent<Renderer>();
+        }
+
+        // Configurar visual inicial (verde para el primer paso)
         UpdateVisualIndicator();
 
-        // Validación
-        if (ingredientSettings == null || ingredientSettings.Length == 0)
-        {
-            Debug.LogWarning($"CuttingBoardSnapZone en {gameObject.name}: No hay configuraciones de ingredientes!");
-        }
-    }
-
-    void Update()
-    {
-        // Revisar cada objeto colocado para detectar si se movió de su posición
-        for (int i = snappedObjects.Count - 1; i >= 0; i--)
-        {
-            GameObject obj = snappedObjects[i];
-            if (obj == null)
-            {
-                snappedObjects.RemoveAt(i);
-                continue;
-            }
-
-            // Detectar si el objeto se movió significativamente de su posición de snap
-            // Esto indica que fue agarrado y movido
-            IngredientSnapSettings settings = GetSettingsForIngredient(obj);
-            if (settings != null)
-            {
-                Vector3 expectedPosition = snapPoint.position + snapPoint.TransformDirection(settings.positionOffset);
-                float distance = Vector3.Distance(obj.transform.position, expectedPosition);
-
-                // Si se movió más de 5cm, liberar del snap
-                if (distance > 0.05f)
-                {
-                    Debug.Log($"[SNAP] {obj.name} se movió {distance}m de su posición, liberando...");
-                    ReleaseSnap(obj);
-                }
-            }
-        }
+        Debug.Log($"[SNAP] Iniciado. Paso actual: {currentStep} - Esperando: {GetCurrentStepName()}");
     }
 
     void OnTriggerEnter(Collider other)
     {
-        // IGNORAR colliders de las manos y otros objetos del sistema VR
+        // IGNORAR colliders de las manos, controllers, cuchillo y otros objetos del sistema VR
         if (other.gameObject.name.Contains("Pinch") ||
             other.gameObject.name.Contains("Collider") ||
             other.gameObject.name == "PinchArea" ||
-            other.gameObject.name == "PinchPointRange")
-        {
-            return; // Salir sin procesar
-        }
-
-        // Verificar si ya está en la lista (para evitar duplicados)
-        if (snappedObjects.Contains(other.gameObject))
+            other.gameObject.name == "PinchPointRange" ||
+            other.gameObject.name.Contains("Controller") ||
+            other.gameObject.name.Contains("Hand") ||
+            other.CompareTag("Knife") ||
+            other.CompareTag("Untagged"))
         {
             return;
         }
 
-        // Verificar si se permite más ingredientes
-        if (!allowMultipleIngredients && snappedObjects.Count > 0)
+        // Si ya completamos todos los pasos, no aceptar más ingredientes
+        if (currentStep >= cuttingSteps.Length)
         {
+            Debug.Log("[SNAP] Todos los pasos completados. No se aceptan más ingredientes.");
             return;
         }
 
-        // Verificar límite de ingredientes
-        if (snappedObjects.Count >= maxIngredients)
+        // Obtener el paso actual
+        CuttingStep step = cuttingSteps[currentStep];
+
+        // Si ya hay un ingrediente colocado en este paso, rechazar
+        if (step.isPlaced)
         {
+            Debug.Log($"[SNAP] Ya hay un ingrediente en el paso actual: {step.stepName}");
             return;
         }
 
-        // Buscar configuración para este ingrediente
-        IngredientSnapSettings settings = GetSettingsForIngredient(other.gameObject);
+        // Verificar si es el ingrediente correcto para este paso
+        string ingredientTag = other.gameObject.tag;
 
-        if (settings != null)
+        if (ingredientTag == step.requiredIngredientTag)
         {
-            SnapIngredient(other.gameObject, settings);
-        }
-    }
-
-    void OnTriggerExit(Collider other)
-    {
-        // NO HACER NADA - El ingrediente se queda pegado permanentemente
-        // Si quieres que se pueda liberar agarrándolo, descomenta el código de abajo:
-
-        /*
-        if (currentSnappedObject == other.gameObject)
-        {
-            if (IsBeingGrabbed(other.gameObject))
-            {
-                ReleaseSnap();
-            }
-        }
-        */
-    }
-
-    void SnapIngredient(GameObject ingredient, IngredientSnapSettings settings)
-    {
-        Debug.Log($"[SNAP] Haciendo snap de {ingredient.name} con tag {ingredient.tag}");
-
-        // Añadir a la lista de objetos colocados
-        snappedObjects.Add(ingredient);
-
-        // Calcular posición final (siempre en el centro del snap point)
-        Vector3 finalPosition = snapPoint.position + snapPoint.TransformDirection(settings.positionOffset);
-
-        // Calcular rotación final
-        Quaternion finalRotation;
-        if (settings.useLocalRotation)
-        {
-            finalRotation = snapPoint.rotation * Quaternion.Euler(settings.rotation);
+            // ¡Ingrediente correcto!
+            Debug.Log($"[SNAP] Ingrediente correcto: {ingredientTag} para paso {step.stepName}");
+            SnapIngredient(other.gameObject);
         }
         else
         {
-            finalRotation = Quaternion.Euler(settings.rotation);
+            // Ingrediente incorrecto
+            Debug.Log($"[SNAP] Ingrediente incorrecto: {ingredientTag}. Se espera: {step.requiredIngredientTag}");
+            PlayErrorFeedback();
+            FlashRedVisual();
+        }
+    }
+
+    void SnapIngredient(GameObject ingredient)
+    {
+        CuttingStep step = cuttingSteps[currentStep];
+        IngredientSnapSettings settings = GetSettingsForIngredient(ingredient);
+
+        if (settings == null)
+        {
+            Debug.LogWarning($"[SNAP] No hay configuración para {ingredient.tag}");
+            return;
         }
 
-        // Aplicar transformación INMEDIATAMENTE
+        Debug.Log($"[SNAP] Haciendo snap de {ingredient.name} en paso {currentStep}: {step.stepName}");
+
+        // Calcular posición y rotación
+        Vector3 finalPosition = snapPoint.position + snapPoint.TransformDirection(settings.positionOffset);
+        Quaternion finalRotation = settings.useLocalRotation
+            ? snapPoint.rotation * Quaternion.Euler(settings.rotation)
+            : Quaternion.Euler(settings.rotation);
+
+        // Aplicar transformación
         ingredient.transform.position = finalPosition;
         ingredient.transform.rotation = finalRotation;
 
-        // Desactivar RigidbodyKinematicLocker si existe (interfiere con el sistema)
+        // BLOQUEAR COMPLETAMENTE EL INGREDIENTE
+        LockIngredient(ingredient);
+
+        // Marcar el paso como colocado
+        step.isPlaced = true;
+        step.placedObject = ingredient;
+
+        // Feedback
+        PlaySnapSound();
+        UpdateVisualIndicator();
+
+        Debug.Log($"[SNAP] Ingrediente bloqueado. Esperando que sea cortado para avanzar al siguiente paso.");
+    }
+
+    void LockIngredient(GameObject ingredient)
+    {
+        // Desactivar RigidbodyKinematicLocker si existe
         var kinematicLocker = ingredient.GetComponent<Oculus.Interaction.RigidbodyKinematicLocker>();
         if (kinematicLocker != null)
         {
@@ -183,56 +191,133 @@ public class CuttingBoardSnapZone : MonoBehaviour
         {
             rb.isKinematic = true;
             rb.useGravity = false;
-            // Congelar todas las restricciones para que se quede completamente quieto
             rb.constraints = RigidbodyConstraints.FreezeAll;
         }
 
-        // NO DESACTIVAR los componentes Grabbable - dejarlos activos para poder agarrar de nuevo
-        // El Rigidbody kinematic con constraints congelados mantiene el objeto quieto
-
-        // Feedback de audio
-        if (snapSound != null && audioSource != null)
+        // DESACTIVAR todos los componentes Grabbable para que NO se pueda agarrar
+        var grabbable = ingredient.GetComponent<Oculus.Interaction.Grabbable>();
+        if (grabbable != null)
         {
-            audioSource.PlayOneShot(snapSound, 0.6f);
+            grabbable.enabled = false;
         }
 
-        // Feedback háptico
-        if (hapticFeedback)
+        var grabInteractable = ingredient.GetComponent<Oculus.Interaction.GrabInteractable>();
+        if (grabInteractable != null)
         {
-            OVRInput.SetControllerVibration(hapticIntensity, 0.2f, OVRInput.Controller.RTouch);
-            OVRInput.SetControllerVibration(hapticIntensity, 0.2f, OVRInput.Controller.LTouch);
+            grabInteractable.enabled = false;
         }
 
-        // Actualizar visual
-        UpdateVisualIndicator();
+        var ovrGrabbable = ingredient.GetComponent<OVRGrabbable>();
+        if (ovrGrabbable != null)
+        {
+            ovrGrabbable.enabled = false;
+        }
+
+        Debug.Log($"[SNAP] {ingredient.name} bloqueado completamente. NO se puede agarrar.");
     }
 
-    void ReleaseSnap(GameObject ingredient)
+    /// <summary>
+    /// Llamar este método cuando el cuchillo toca/corta el ingrediente
+    /// </summary>
+    public void OnIngredientCut(GameObject ingredient)
     {
-        if (!snappedObjects.Contains(ingredient))
+        if (currentStep >= cuttingSteps.Length)
             return;
 
-        Debug.Log($"[SNAP] Liberando {ingredient.name} del snap");
+        CuttingStep step = cuttingSteps[currentStep];
 
-        // Remover de la lista
-        snappedObjects.Remove(ingredient);
-
-        // NO reactivar RigidbodyKinematicLocker - causa problemas con la gravedad y el agarre
-        // Dejarlo desactivado permanentemente después del primer snap
-
-        // Restaurar físicas normales
-        Rigidbody rb = ingredient.GetComponent<Rigidbody>();
-        if (rb != null)
+        // Verificar que es el ingrediente del paso actual
+        if (step.placedObject == ingredient && step.isPlaced && !step.isCut)
         {
-            rb.constraints = RigidbodyConstraints.None; // Liberar constraints
-            rb.isKinematic = false;
-            rb.useGravity = true;
+            Debug.Log($"[SNAP] ¡Ingrediente cortado! Paso {currentStep} completado: {step.stepName}");
+
+            step.isCut = true;
+
+            // Guardar posición del ingrediente antes de destruirlo
+            Vector3 ingredientPosition = ingredient.transform.position;
+
+            // EFECTOS VISUALES Y DE AUDIO al completar el corte
+            PlayCutCompleteEffects(ingredientPosition);
+
+            // GENERAR PEDAZOS CORTADOS
+            SpawnCutPieces(step, ingredientPosition);
+
+            // DESTRUIR el ingrediente original (desaparece)
+            Destroy(ingredient);
+            step.placedObject = null;
+
+            // Avanzar al siguiente paso
+            currentStep++;
+
+            if (currentStep < cuttingSteps.Length)
+            {
+                Debug.Log($"[SNAP] Avanzando al paso {currentStep}: {cuttingSteps[currentStep].stepName}");
+                UpdateVisualIndicator();
+            }
+            else
+            {
+                Debug.Log("[SNAP] ¡Todos los pasos completados!");
+                UpdateVisualIndicator();
+            }
+        }
+    }
+
+    void PlayCutCompleteEffects(Vector3 position)
+    {
+        // Sonido de corte completado
+        if (cutCompleteSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(cutCompleteSound, 0.7f);
         }
 
-        // Los componentes Grabbable ya están activos, no necesitamos reactivarlos
+        // Partículas
+        if (cutCompleteParticles != null)
+        {
+            cutCompleteParticles.transform.position = position;
+            cutCompleteParticles.Play();
+        }
 
-        // Actualizar visual
-        UpdateVisualIndicator();
+        // Efecto visual
+        if (cutCompleteEffectPrefab != null)
+        {
+            GameObject effect = Instantiate(cutCompleteEffectPrefab, position, Quaternion.identity);
+            Destroy(effect, 3f);
+        }
+
+        Debug.Log($"[SNAP] Efectos de corte completado reproducidos en {position}");
+    }
+
+    void SpawnCutPieces(CuttingStep step, Vector3 position)
+    {
+        if (step.piecePrefab == null)
+        {
+            Debug.LogWarning($"[SNAP] No hay prefab de pedazos configurado para {step.stepName}");
+            return;
+        }
+
+        // Crear GameObject para manejar los pedazos
+        GameObject piecesContainer = new GameObject($"CutPieces_{step.stepName}");
+        piecesContainer.transform.position = position;
+
+        // Agregar componente CutIngredientPieces
+        CutIngredientPieces cutPieces = piecesContainer.AddComponent<CutIngredientPieces>();
+
+        // Configurar
+        cutPieces.configuration = new CutIngredientPieces.PieceConfiguration
+        {
+            piecePrefab = step.piecePrefab,
+            pieceCount = step.pieceCount,
+            spawnArea = step.spawnArea,
+            randomRotation = step.randomRotation
+        };
+
+        // Generar los pedazos
+        cutPieces.SpawnPieces(position);
+
+        // Guardar referencia
+        step.cutPieces = cutPieces;
+
+        Debug.Log($"[SNAP] Generados {step.pieceCount} pedazos de {step.stepName}");
     }
 
     IngredientSnapSettings GetSettingsForIngredient(GameObject ingredient)
@@ -251,112 +336,84 @@ public class CuttingBoardSnapZone : MonoBehaviour
         return null;
     }
 
-    bool IsBeingGrabbed(GameObject obj)
-    {
-        // Compatibilidad con Meta XR Building Blocks - Grabbable
-        var grabbable = obj.GetComponent<Oculus.Interaction.Grabbable>();
-        if (grabbable != null && grabbable.enabled)
-        {
-            return grabbable.SelectingPointsCount > 0;
-        }
-
-        // Compatibilidad con Meta XR Building Blocks - GrabInteractable
-        var grabInteractable = obj.GetComponent<Oculus.Interaction.GrabInteractable>();
-        if (grabInteractable != null && grabInteractable.enabled)
-        {
-            return grabInteractable.State == Oculus.Interaction.InteractableState.Select;
-        }
-
-        // Compatibilidad con OVRGrabbable (legacy)
-        var ovrGrabbable = obj.GetComponent<OVRGrabbable>();
-        if (ovrGrabbable != null && ovrGrabbable.enabled)
-        {
-            return ovrGrabbable.isGrabbed;
-        }
-
-        return false;
-    }
-
     void UpdateVisualIndicator()
     {
-        if (visualIndicator == null)
+        if (visualRenderer == null || greenMaterial == null)
             return;
 
-        if (hideVisualWhenUsed)
+        // Verde si estamos esperando un ingrediente, apagado si ya completamos
+        if (currentStep < cuttingSteps.Length)
         {
-            // Ocultar solo cuando hay ingredientes
-            visualIndicator.SetActive(snappedObjects.Count == 0);
+            visualRenderer.material = greenMaterial;
+            visualIndicator.SetActive(true);
         }
         else
         {
-            // Mantener siempre visible
-            visualIndicator.SetActive(true);
+            visualIndicator.SetActive(false);
         }
     }
 
-    /// <summary>
-    /// Método público para forzar la liberación de un ingrediente específico
-    /// </summary>
-    public void ForceRelease(GameObject ingredient)
+    void FlashRedVisual()
     {
-        ReleaseSnap(ingredient);
-    }
-
-    /// <summary>
-    /// Liberar todos los ingredientes
-    /// </summary>
-    public void ReleaseAll()
-    {
-        // Crear copia de la lista para evitar modificar durante iteración
-        var objectsToRelease = new System.Collections.Generic.List<GameObject>(snappedObjects);
-        foreach (var obj in objectsToRelease)
+        if (visualRenderer != null && redMaterial != null)
         {
-            ReleaseSnap(obj);
+            visualRenderer.material = redMaterial;
+            // Volver a verde después de 0.5 segundos
+            Invoke("UpdateVisualIndicator", 0.5f);
         }
     }
 
-    /// <summary>
-    /// Verificar si hay objetos colocados
-    /// </summary>
-    public bool HasSnappedObjects()
+    void PlaySnapSound()
     {
-        return snappedObjects.Count > 0;
+        if (snapSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(snapSound, 0.6f);
+        }
     }
 
-    /// <summary>
-    /// Obtener cantidad de objetos colocados
-    /// </summary>
-    public int GetSnappedObjectCount()
+    void PlayErrorFeedback()
     {
-        return snappedObjects.Count;
+        if (errorSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(errorSound, 0.8f);
+        }
     }
 
-    /// <summary>
-    /// Obtener lista de objetos colocados
-    /// </summary>
-    public System.Collections.Generic.List<GameObject> GetSnappedObjects()
+    string GetCurrentStepName()
     {
-        return new System.Collections.Generic.List<GameObject>(snappedObjects);
+        if (currentStep < cuttingSteps.Length)
+        {
+            return cuttingSteps[currentStep].stepName;
+        }
+        return "Completado";
     }
 
-    // Debug visual en Scene View
+    // Métodos públicos para consultar el estado
+    public bool IsStepCompleted(int stepIndex)
+    {
+        if (stepIndex < 0 || stepIndex >= cuttingSteps.Length)
+            return false;
+        return cuttingSteps[stepIndex].isCut;
+    }
+
+    public int GetCurrentStep()
+    {
+        return currentStep;
+    }
+
+    public bool AllStepsCompleted()
+    {
+        return currentStep >= cuttingSteps.Length;
+    }
+
+    // Debug visual
     void OnDrawGizmos()
     {
         Transform point = snapPoint != null ? snapPoint : transform;
 
-        // Dibujar punto de snap
         Gizmos.color = Color.green;
         Gizmos.DrawWireSphere(point.position, 0.02f);
 
-        // Dibujar ejes de orientación
-        Gizmos.color = Color.red;
-        Gizmos.DrawLine(point.position, point.position + point.right * 0.05f);
-        Gizmos.color = Color.green;
-        Gizmos.DrawLine(point.position, point.position + point.up * 0.05f);
-        Gizmos.color = Color.blue;
-        Gizmos.DrawLine(point.position, point.position + point.forward * 0.05f);
-
-        // Dibujar preview de posiciones para cada ingrediente
         if (ingredientSettings != null)
         {
             foreach (var settings in ingredientSettings)
@@ -364,26 +421,6 @@ public class CuttingBoardSnapZone : MonoBehaviour
                 Vector3 previewPos = point.position + point.TransformDirection(settings.positionOffset);
                 Gizmos.color = Color.cyan;
                 Gizmos.DrawWireCube(previewPos, Vector3.one * 0.03f);
-            }
-        }
-    }
-
-    void OnDrawGizmosSelected()
-    {
-        // Dibujar collider de la zona
-        Collider col = GetComponent<Collider>();
-        if (col != null)
-        {
-            Gizmos.color = new Color(0, 1, 0, 0.3f);
-            Gizmos.matrix = transform.localToWorldMatrix;
-
-            if (col is BoxCollider box)
-            {
-                Gizmos.DrawCube(box.center, box.size);
-            }
-            else if (col is SphereCollider sphere)
-            {
-                Gizmos.DrawSphere(sphere.center, sphere.radius);
             }
         }
     }
