@@ -6,13 +6,33 @@ using System.Collections.Generic;
 /// </summary>
 public class CutIngredientPieces : MonoBehaviour
 {
+    public enum SpawnMode
+    {
+        Random,         // Posiciones aleatorias (para cubos de pescado)
+        Specific        // Posiciones específicas (para mitades de limón)
+    }
+
+    [System.Serializable]
+    public class SpecificPiece
+    {
+        public GameObject prefab;               // Prefab específico para esta pieza
+        public Vector3 position;                // Posición relativa al centro
+        public Vector3 rotation;                // Rotación (euler angles)
+    }
+
     [System.Serializable]
     public class PieceConfiguration
     {
+        public SpawnMode spawnMode = SpawnMode.Random;
+
+        [Header("Modo Random (cubos, trozos)")]
         public GameObject piecePrefab;          // Prefab del pedazo (cubo, mitad, etc.)
         public int pieceCount = 10;             // Cantidad de pedazos
         public Vector3 spawnArea = new Vector3(0.2f, 0.1f, 0.2f); // Área de dispersión
         public bool randomRotation = true;      // Rotación aleatoria
+
+        [Header("Modo Específico (mitades, gajos)")]
+        public SpecificPiece[] specificPieces;  // Array de piezas específicas con sus prefabs
     }
 
     [Header("Configuración de Pedazos")]
@@ -62,14 +82,38 @@ public class CutIngredientPieces : MonoBehaviour
     /// </summary>
     public void SpawnPieces(Vector3 centerPosition)
     {
-        if (configuration.piecePrefab == null)
+        // Validar según el modo
+        if (configuration.spawnMode == SpawnMode.Random && configuration.piecePrefab == null)
         {
-            Debug.LogError("[CUT] No hay prefab configurado para los pedazos!");
+            Debug.LogError("[CUT] Modo Random requiere un Piece Prefab configurado!");
+            return;
+        }
+
+        if (configuration.spawnMode == SpawnMode.Specific &&
+            (configuration.specificPieces == null || configuration.specificPieces.Length == 0))
+        {
+            Debug.LogError("[CUT] Modo Specific requiere configurar Specific Pieces!");
             return;
         }
 
         ClearPieces();
 
+        if (configuration.spawnMode == SpawnMode.Specific)
+        {
+            // Modo específico: usar posiciones exactas con prefabs específicos
+            SpawnPiecesSpecific(centerPosition);
+        }
+        else
+        {
+            // Modo random: dispersión aleatoria
+            SpawnPiecesRandom(centerPosition);
+        }
+
+        Debug.Log($"[CUT] Generados {pieces.Count} pedazos en {centerPosition} (Modo: {configuration.spawnMode})");
+    }
+
+    void SpawnPiecesRandom(Vector3 centerPosition)
+    {
         for (int i = 0; i < configuration.pieceCount; i++)
         {
             // Posición aleatoria dentro del área
@@ -86,37 +130,80 @@ public class CutIngredientPieces : MonoBehaviour
                 ? Random.rotation
                 : Quaternion.identity;
 
-            // Instanciar pedazo
-            GameObject piece = Instantiate(configuration.piecePrefab, spawnPos, rotation, transform);
+            CreatePiece(spawnPos, rotation);
+        }
+    }
 
-            // Asegurar que tiene Rigidbody
-            Rigidbody rb = piece.GetComponent<Rigidbody>();
-            if (rb == null)
-            {
-                rb = piece.AddComponent<Rigidbody>();
-            }
-            rb.useGravity = true;
-            rb.isKinematic = false;
-            rb.mass = 0.05f; // Liviano
-
-            // Asegurar que tiene Collider
-            if (piece.GetComponent<Collider>() == null)
-            {
-                piece.AddComponent<BoxCollider>();
-            }
-
-            // Guardar renderer para highlight
-            Renderer renderer = piece.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                pieceRenderers.Add(renderer);
-                originalMaterials.Add(renderer.material);
-            }
-
-            pieces.Add(piece);
+    void SpawnPiecesSpecific(Vector3 centerPosition)
+    {
+        if (configuration.specificPieces == null || configuration.specificPieces.Length == 0)
+        {
+            Debug.LogWarning("[CUT] No hay piezas específicas configuradas. Usando modo random.");
+            SpawnPiecesRandom(centerPosition);
+            return;
         }
 
-        Debug.Log($"[CUT] Generados {pieces.Count} pedazos en {centerPosition}");
+        for (int i = 0; i < configuration.specificPieces.Length; i++)
+        {
+            SpecificPiece piece = configuration.specificPieces[i];
+
+            if (piece.prefab == null)
+            {
+                Debug.LogWarning($"[CUT] Pieza específica {i} no tiene prefab asignado. Saltando...");
+                continue;
+            }
+
+            // Posición relativa al centro
+            Vector3 spawnPos = centerPosition + piece.position;
+
+            // Rotación específica
+            Quaternion rotation = Quaternion.Euler(piece.rotation);
+
+            CreatePieceWithPrefab(piece.prefab, spawnPos, rotation);
+        }
+    }
+
+    void CreatePiece(Vector3 position, Quaternion rotation)
+    {
+        CreatePieceWithPrefab(configuration.piecePrefab, position, rotation);
+    }
+
+    void CreatePieceWithPrefab(GameObject prefab, Vector3 position, Quaternion rotation)
+    {
+        if (prefab == null)
+        {
+            Debug.LogError("[CUT] Prefab es null, no se puede crear pieza.");
+            return;
+        }
+
+        // Instanciar pedazo
+        GameObject piece = Instantiate(prefab, position, rotation, transform);
+
+        // Asegurar que tiene Rigidbody
+        Rigidbody rb = piece.GetComponent<Rigidbody>();
+        if (rb == null)
+        {
+            rb = piece.AddComponent<Rigidbody>();
+        }
+        rb.useGravity = true;
+        rb.isKinematic = false;
+        rb.mass = 0.05f; // Liviano
+
+        // Asegurar que tiene Collider
+        if (piece.GetComponent<Collider>() == null)
+        {
+            piece.AddComponent<BoxCollider>();
+        }
+
+        // Guardar renderer para highlight
+        Renderer renderer = piece.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            pieceRenderers.Add(renderer);
+            originalMaterials.Add(renderer.material);
+        }
+
+        pieces.Add(piece);
     }
 
     void Update()

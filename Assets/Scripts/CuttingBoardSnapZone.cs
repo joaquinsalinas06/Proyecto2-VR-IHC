@@ -23,10 +23,7 @@ public class CuttingBoardSnapZone : MonoBehaviour
         public string requiredIngredientTag;    // Tag del ingrediente que se necesita
 
         [Header("Pedazos Cortados")]
-        public GameObject piecePrefab;          // Prefab del pedazo (cubo, mitad, etc.)
-        public int pieceCount = 10;             // Cantidad de pedazos
-        public Vector3 spawnArea = new Vector3(0.2f, 0.1f, 0.2f); // Área de dispersión
-        public bool randomRotation = true;      // Rotación aleatoria
+        public CutIngredientPieces.PieceConfiguration pieceConfiguration;
 
         [HideInInspector] public bool isPlaced = false;   // Si el ingrediente fue colocado
         [HideInInspector] public bool isCut = false;      // Si el ingrediente fue cortado
@@ -289,7 +286,7 @@ public class CuttingBoardSnapZone : MonoBehaviour
 
     void SpawnCutPieces(CuttingStep step, Vector3 position)
     {
-        if (step.piecePrefab == null)
+        if (step.pieceConfiguration == null || step.pieceConfiguration.piecePrefab == null)
         {
             Debug.LogWarning($"[SNAP] No hay prefab de pedazos configurado para {step.stepName}");
             return;
@@ -302,14 +299,8 @@ public class CuttingBoardSnapZone : MonoBehaviour
         // Agregar componente CutIngredientPieces
         CutIngredientPieces cutPieces = piecesContainer.AddComponent<CutIngredientPieces>();
 
-        // Configurar
-        cutPieces.configuration = new CutIngredientPieces.PieceConfiguration
-        {
-            piecePrefab = step.piecePrefab,
-            pieceCount = step.pieceCount,
-            spawnArea = step.spawnArea,
-            randomRotation = step.randomRotation
-        };
+        // Usar la configuración directamente desde el step
+        cutPieces.configuration = step.pieceConfiguration;
 
         // Generar los pedazos
         cutPieces.SpawnPieces(position);
@@ -317,7 +308,12 @@ public class CuttingBoardSnapZone : MonoBehaviour
         // Guardar referencia
         step.cutPieces = cutPieces;
 
-        Debug.Log($"[SNAP] Generados {step.pieceCount} pedazos de {step.stepName}");
+        // Determinar cantidad según el modo
+        int count = step.pieceConfiguration.spawnMode == CutIngredientPieces.SpawnMode.Specific
+            ? (step.pieceConfiguration.specificPieces != null ? step.pieceConfiguration.specificPieces.Length : 0)
+            : step.pieceConfiguration.pieceCount;
+
+        Debug.Log($"[SNAP] Generados {count} pedazos de {step.stepName} (Modo: {step.pieceConfiguration.spawnMode})");
     }
 
     IngredientSnapSettings GetSettingsForIngredient(GameObject ingredient)
