@@ -286,9 +286,27 @@ public class CuttingBoardSnapZone : MonoBehaviour
 
     void SpawnCutPieces(CuttingStep step, Vector3 position)
     {
-        if (step.pieceConfiguration == null || step.pieceConfiguration.piecePrefab == null)
+        if (step.pieceConfiguration == null)
         {
-            Debug.LogWarning($"[SNAP] No hay prefab de pedazos configurado para {step.stepName}");
+            Debug.LogWarning($"[SNAP] No hay configuración de pedazos para {step.stepName}");
+            return;
+        }
+
+        // Validar según el modo
+        bool isValid = false;
+        if (step.pieceConfiguration.spawnMode == CutIngredientPieces.SpawnMode.Random)
+        {
+            isValid = step.pieceConfiguration.piecePrefab != null;
+        }
+        else if (step.pieceConfiguration.spawnMode == CutIngredientPieces.SpawnMode.Specific)
+        {
+            isValid = step.pieceConfiguration.specificPieces != null &&
+                      step.pieceConfiguration.specificPieces.Length > 0;
+        }
+
+        if (!isValid)
+        {
+            Debug.LogWarning($"[SNAP] No hay prefabs configurados para {step.stepName} (Modo: {step.pieceConfiguration.spawnMode})");
             return;
         }
 

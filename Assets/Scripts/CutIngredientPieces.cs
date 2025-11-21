@@ -33,6 +33,13 @@ public class CutIngredientPieces : MonoBehaviour
 
         [Header("Modo Específico (mitades, gajos)")]
         public SpecificPiece[] specificPieces;  // Array de piezas específicas con sus prefabs
+
+        [Header("Física de Pedazos")]
+        [Tooltip("Masa de cada pedazo en kg (más bajo = más liviano)")]
+        public float pieceMass = 0.005f;
+
+        [Tooltip("Resistencia al movimiento (0 = sin resistencia, 1 = mucha resistencia)")]
+        public float pieceDrag = 0.5f;
     }
 
     [Header("Configuración de Pedazos")]
@@ -109,11 +116,12 @@ public class CutIngredientPieces : MonoBehaviour
             SpawnPiecesRandom(centerPosition);
         }
 
-        Debug.Log($"[CUT] Generados {pieces.Count} pedazos en {centerPosition} (Modo: {configuration.spawnMode})");
     }
 
     void SpawnPiecesRandom(Vector3 centerPosition)
     {
+        Debug.Log($"[SPAWN RANDOM] Centro: {centerPosition}, Cantidad: {configuration.pieceCount}, Area: {configuration.spawnArea}");
+
         for (int i = 0; i < configuration.pieceCount; i++)
         {
             // Posición aleatoria dentro del área
@@ -124,6 +132,11 @@ public class CutIngredientPieces : MonoBehaviour
             );
 
             Vector3 spawnPos = centerPosition + randomOffset;
+
+            if (i == 0) // Solo mostrar la primera pieza para no llenar el log
+            {
+                Debug.Log($"[SPAWN RANDOM] Primera pieza en: {spawnPos}");
+            }
 
             // Rotación
             Quaternion rotation = configuration.randomRotation
@@ -143,6 +156,8 @@ public class CutIngredientPieces : MonoBehaviour
             return;
         }
 
+        Debug.Log($"[SPAWN] Centro de spawn: {centerPosition}");
+
         for (int i = 0; i < configuration.specificPieces.Length; i++)
         {
             SpecificPiece piece = configuration.specificPieces[i];
@@ -155,6 +170,11 @@ public class CutIngredientPieces : MonoBehaviour
 
             // Posición relativa al centro
             Vector3 spawnPos = centerPosition + piece.position;
+
+            Debug.Log($"[SPAWN] Pieza {i} ({piece.prefab.name}):");
+            Debug.Log($"  - Offset configurado: {piece.position}");
+            Debug.Log($"  - Posición final: {spawnPos}");
+            Debug.Log($"  - Rotación: {piece.rotation}");
 
             // Rotación específica
             Quaternion rotation = Quaternion.Euler(piece.rotation);
@@ -185,15 +205,26 @@ public class CutIngredientPieces : MonoBehaviour
         {
             rb = piece.AddComponent<Rigidbody>();
         }
-        rb.useGravity = true;
-        rb.isKinematic = false;
-        rb.mass = 0.05f; // Liviano
+
+        // IMPORTANTE: Empezar como kinematic para evitar explosiones
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        rb.mass = configuration.pieceMass;
+        rb.drag = configuration.pieceDrag;
+        rb.angularDrag = 1f; // Más resistencia a la rotación
 
         // Asegurar que tiene Collider
-        if (piece.GetComponent<Collider>() == null)
+        Collider col = piece.GetComponent<Collider>();
+        if (col == null)
         {
-            piece.AddComponent<BoxCollider>();
+            col = piece.AddComponent<BoxCollider>();
         }
+
+        // Desactivar collider temporalmente
+        col.enabled = false;
+
+        // Activar física después de un breve delay
+        StartCoroutine(EnablePhysicsAfterDelay(piece, 0.3f));
 
         // Guardar renderer para highlight
         Renderer renderer = piece.GetComponent<Renderer>();
@@ -204,6 +235,30 @@ public class CutIngredientPieces : MonoBehaviour
         }
 
         pieces.Add(piece);
+    }
+
+    System.Collections.IEnumerator EnablePhysicsAfterDelay(GameObject piece, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (piece == null) yield break;
+
+        // Activar collider
+        Collider col = piece.GetComponent<Collider>();
+        if (col != null)
+        {
+            col.enabled = true;
+        }
+
+        // Activar física suavemente
+        Rigidbody rb = piece.GetComponent<Rigidbody>();
+        if (rb != null)
+        {
+            rb.isKinematic = false;
+            rb.useGravity = true;
+            rb.velocity = Vector3.zero;
+            rb.angularVelocity = Vector3.zero;
+        }
     }
 
     void Update()
@@ -277,20 +332,27 @@ public class CutIngredientPieces : MonoBehaviour
 
     bool DetectPinchGesture()
     {
-        // Detectar pinch con hand tracking
-        // Esto puede variar según tu setup, aquí hay una implementación genérica
+        // Detectar INICIO de pinch (GetDown, no Get)
+        // Funciona con hand tracking de Meta Quest
 
-        // Opción 1: Usar OVRInput (funciona con hand tracking)
-        if (OVRInput.Get(OVRInput.Button.One) || OVRInput.Get(OVRInput.Button.Two))
+        // Método 1: Detectar con PrimaryIndexTrigger (recomendado para hand tracking)
+        bool leftPinchDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LHand);
+        bool rightPinchDown = OVRInput.GetDown(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RHand);
+
+        if (leftPinchDown || rightPinchDown)
         {
+            Debug.Log("[CUT] Pinch detectado!");
             return true;
         }
 
-        // Opción 2: Detectar pinch strength (más preciso para hand tracking)
-        float leftPinchStrength = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch);
-        float rightPinchStrength = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
+        // Método 2: Detectar con Button.One/Two (alternativo)
+        if (OVRInput.GetDown(OVRInput.Button.One) || OVRInput.GetDown(OVRInput.Button.Two))
+        {
+            Debug.Log("[CUT] Button detectado!");
+            return true;
+        }
 
-        return leftPinchStrength > 0.8f || rightPinchStrength > 0.8f;
+        return false;
     }
 
     void GrabAllPieces(Transform hand)
@@ -357,13 +419,20 @@ public class CutIngredientPieces : MonoBehaviour
 
     bool DetectReleaseGesture()
     {
-        // Detectar cuando se suelta el pinch
-        float leftPinchStrength = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.LTouch);
-        float rightPinchStrength = OVRInput.Get(OVRInput.Axis1D.PrimaryIndexTrigger, OVRInput.Controller.RTouch);
+        // Detectar cuando SUELTA el pinch (GetUp)
+        bool leftPinchUp = OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.LHand);
+        bool rightPinchUp = OVRInput.GetUp(OVRInput.Button.PrimaryIndexTrigger, OVRInput.Controller.RHand);
 
-        // Soltó el pinch
-        if (leftPinchStrength < 0.3f && rightPinchStrength < 0.3f)
+        if (leftPinchUp || rightPinchUp)
         {
+            Debug.Log("[CUT] Pinch soltado!");
+            return true;
+        }
+
+        // Método alternativo con Button.One/Two
+        if (OVRInput.GetUp(OVRInput.Button.One) || OVRInput.GetUp(OVRInput.Button.Two))
+        {
+            Debug.Log("[CUT] Button soltado!");
             return true;
         }
 
