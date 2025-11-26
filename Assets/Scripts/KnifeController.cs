@@ -39,6 +39,14 @@ public class KnifeController : MonoBehaviour
     // Manual velocity tracking (para cuando el Rigidbody es kinematic)
     private Vector3 lastPosition;
     private float lastPositionTime;
+    private Vector3 previousFramePosition;
+
+    [Header("Detección de Líneas de Corte")]
+    [Tooltip("Distancia máxima del raycast para detectar líneas")]
+    public float raycastMaxDistance = 0.5f;
+
+    [Tooltip("Layer de las líneas de corte")]
+    public LayerMask cuttingLineLayer = -1;
 
     void Start()
     {
@@ -65,6 +73,7 @@ public class KnifeController : MonoBehaviour
 
         // Inicializar tracking de posición
         lastPosition = transform.position;
+        previousFramePosition = transform.position;
         lastPositionTime = Time.time;
 
         Debug.Log("[KNIFE] Cuchillo inicializado. Velocidad mínima de corte: " + minCutVelocity + " m/s");
@@ -72,9 +81,54 @@ public class KnifeController : MonoBehaviour
 
     void Update()
     {
+        // Raycast sweep para detectar líneas de corte
+        PerformRaycastSweep();
+
         // Actualizar posición cada frame para calcular velocidad manual
+        previousFramePosition = lastPosition;
         lastPosition = transform.position;
         lastPositionTime = Time.time;
+    }
+
+    /// <summary>
+    /// Realiza un raycast desde la posición anterior hasta la actual
+    /// para detectar líneas de corte que el cuchillo atraviesa
+    /// </summary>
+    void PerformRaycastSweep()
+    {
+        Vector3 currentPos = transform.position;
+        Vector3 direction = currentPos - previousFramePosition;
+        float distance = direction.magnitude;
+
+        // Solo hacer raycast si nos movimos una distancia significativa
+        if (distance < 0.001f)
+            return;
+
+        // Normalizar dirección
+        direction.Normalize();
+
+        // Limitar distancia máxima del raycast
+        distance = Mathf.Min(distance, raycastMaxDistance);
+
+        // Realizar raycast
+        RaycastHit[] hits = Physics.RaycastAll(previousFramePosition, direction, distance, cuttingLineLayer);
+
+        // Procesar cada línea de corte detectada
+        foreach (RaycastHit hit in hits)
+        {
+            CuttingLine line = hit.collider.GetComponent<CuttingLine>();
+            if (line != null)
+            {
+                float velocity = CalculateVelocity();
+                line.RegisterCut(velocity, Time.deltaTime);
+            }
+        }
+
+        // Debug visual (opcional)
+        if (hits.Length > 0)
+        {
+            Debug.DrawLine(previousFramePosition, currentPos, Color.green, 0.1f);
+        }
     }
 
     void OnTriggerEnter(Collider other)
@@ -82,6 +136,16 @@ public class KnifeController : MonoBehaviour
         // Verificar si es un objeto cortable
         if (!IsCuttable(other.gameObject))
             return;
+
+        // IMPORTANTE: Si el ingrediente tiene un sistema de corte progresivo, NO usar corte instantáneo
+        IngredientCuttingPattern pattern = other.GetComponent<IngredientCuttingPattern>();
+        if (pattern != null)
+        {
+            // Este ingrediente usa el sistema progresivo con líneas
+            // El corte se maneja a través de las líneas individuales (RegisterCut en CuttingLine)
+            Debug.Log($"[KNIFE] {other.gameObject.name} tiene sistema progresivo - usando líneas de corte en vez de corte instantáneo");
+            return;
+        }
 
         // Verificar cooldown (evitar cortes múltiples muy rápidos)
         if (lastCutObject == other.gameObject && Time.time - lastCutTime < cutCooldown)
@@ -103,7 +167,7 @@ public class KnifeController : MonoBehaviour
             return;
         }
 
-        // ¡Realizar el corte!
+        // ¡Realizar el corte! (solo para ingredientes SIN sistema progresivo)
         Debug.Log($"[KNIFE] ¡Cortando {other.gameObject.name}! Velocidad: {currentVelocity:F2} m/s");
         PerformCut(other.gameObject, other.ClosestPoint(transform.position));
     }
@@ -122,7 +186,7 @@ public class KnifeController : MonoBehaviour
     /// Calcula la velocidad del cuchillo usando seguimiento de posición
     /// Esto funciona incluso cuando el Rigidbody es kinematic (como cuando está siendo agarrado)
     /// </summary>
-    float CalculateVelocity()
+    public float CalculateVelocity()
     {
         // Calcular velocidad manualmente desde el cambio de posición
         float deltaTime = Time.time - lastPositionTime;

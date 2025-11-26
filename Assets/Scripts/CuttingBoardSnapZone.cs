@@ -166,11 +166,63 @@ public class CuttingBoardSnapZone : MonoBehaviour
         step.isPlaced = true;
         step.placedObject = ingredient;
 
+        // Generar patrón de líneas de corte
+        GenerateCuttingPattern(ingredient);
+
         // Feedback
         PlaySnapSound();
         UpdateVisualIndicator();
 
         Debug.Log($"[SNAP] Ingrediente bloqueado. Esperando que sea cortado para avanzar al siguiente paso.");
+    }
+
+    /// <summary>
+    /// Genera el patrón de líneas de corte para el ingrediente
+    /// </summary>
+    void GenerateCuttingPattern(GameObject ingredient)
+    {
+        Debug.Log($"[SNAP PATTERN] ========== GENERANDO PATRÓN DESDE SNAP ZONE ==========");
+        Debug.Log($"[SNAP PATTERN] Ingrediente que hizo snap: {ingredient.name}");
+
+        // Verificar si el ingrediente ya tiene un IngredientCuttingPattern
+        IngredientCuttingPattern pattern = ingredient.GetComponent<IngredientCuttingPattern>();
+
+        if (pattern != null)
+        {
+            Debug.Log($"[SNAP PATTERN] ✓ Componente IngredientCuttingPattern encontrado!");
+            Debug.Log($"[SNAP PATTERN]   Tipo de patrón: {pattern.patternType}");
+            Debug.Log($"[SNAP PATTERN]   Prefab asignado: {(pattern.cuttingLinePrefab != null ? "SÍ" : "NO")}");
+
+            // Suscribirse al evento de completado
+            pattern.OnPatternCompleted += OnCuttingPatternCompleted;
+            Debug.Log($"[SNAP PATTERN]   Suscrito a OnPatternCompleted");
+
+            // Generar el patrón
+            Debug.Log($"[SNAP PATTERN]   Llamando a pattern.GeneratePattern()...");
+            pattern.GeneratePattern();
+
+            Debug.Log($"[SNAP PATTERN] ✓ Patrón de corte generado para {ingredient.name}: {pattern.patternType}");
+        }
+        else
+        {
+            Debug.LogError($"[SNAP PATTERN ERROR] ¡{ingredient.name} NO TIENE componente IngredientCuttingPattern!");
+            Debug.LogError($"[SNAP PATTERN ERROR] Agrega el componente IngredientCuttingPattern al prefab de {ingredient.name}");
+            Debug.LogWarning($"[SNAP PATTERN] Usando corte instantáneo clásico como fallback.");
+        }
+
+        Debug.Log($"[SNAP PATTERN] ========== FIN GENERACIÓN PATRÓN ==========");
+    }
+
+    /// <summary>
+    /// Callback cuando se completa el patrón de corte
+    /// </summary>
+    void OnCuttingPatternCompleted(IngredientCuttingPattern pattern)
+    {
+        GameObject ingredient = pattern.gameObject;
+        Debug.Log($"[SNAP] Patrón de corte completado para {ingredient.name}");
+
+        // Llamar al método de corte existente
+        OnIngredientCut(ingredient);
     }
 
     void LockIngredient(GameObject ingredient)
