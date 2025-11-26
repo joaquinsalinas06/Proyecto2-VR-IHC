@@ -22,6 +22,10 @@ public class CuttingBoardSnapZone : MonoBehaviour
         public string stepName;                 // Nombre del paso (ej: "Cortar Pescado")
         public string requiredIngredientTag;    // Tag del ingrediente que se necesita
 
+        [Header("Modo de Corte")]
+        [Tooltip("Si true, usa grilla progresiva. Si false, un solo corte simple")]
+        public bool useProgressiveGrid = false;
+
         [Header("Pedazos Cortados")]
         public CutIngredientPieces.PieceConfiguration pieceConfiguration;
 
@@ -29,6 +33,7 @@ public class CuttingBoardSnapZone : MonoBehaviour
         [HideInInspector] public bool isCut = false;      // Si el ingrediente fue cortado
         [HideInInspector] public GameObject placedObject; // Referencia al objeto colocado
         [HideInInspector] public CutIngredientPieces cutPieces; // Referencia a los pedazos
+        [HideInInspector] public ProgressiveCutGrid progressiveGrid; // Referencia a la grilla progresiva
     }
 
     [Header("Snap Point")]
@@ -166,6 +171,26 @@ public class CuttingBoardSnapZone : MonoBehaviour
         step.isPlaced = true;
         step.placedObject = ingredient;
 
+        // Si usa grilla progresiva, activarla
+        if (step.useProgressiveGrid)
+        {
+            ProgressiveCutGrid grid = ingredient.GetComponent<ProgressiveCutGrid>();
+            if (grid != null)
+            {
+                step.progressiveGrid = grid;
+                grid.Activate();
+
+                // Suscribirse al evento de completado
+                grid.OnAllCutsCompleted = () => OnProgressiveGridCompleted(step);
+
+                Debug.Log($"[SNAP] Grilla progresiva activada para {ingredient.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[SNAP] {ingredient.name} tiene useProgressiveGrid=true pero no tiene componente ProgressiveCutGrid!");
+            }
+        }
+
         // Feedback
         PlaySnapSound();
         UpdateVisualIndicator();
@@ -214,7 +239,47 @@ public class CuttingBoardSnapZone : MonoBehaviour
     }
 
     /// <summary>
-    /// Llamar este método cuando el cuchillo toca/corta el ingrediente
+    /// Llamado cuando se completa una grilla progresiva
+    /// </summary>
+    void OnProgressiveGridCompleted(CuttingStep step)
+    {
+        if (step == null || step.isCut)
+            return;
+
+        Debug.Log($"[SNAP] ¡Grilla progresiva completada! Paso {currentStep} completado: {step.stepName}");
+
+        step.isCut = true;
+
+        // Guardar posición del ingrediente antes de destruirlo
+        Vector3 ingredientPosition = step.placedObject.transform.position;
+
+        // EFECTOS VISUALES Y DE AUDIO al completar el corte
+        PlayCutCompleteEffects(ingredientPosition);
+
+        // GENERAR PEDAZOS CORTADOS
+        SpawnCutPieces(step, ingredientPosition);
+
+        // DESTRUIR el ingrediente original (desaparece)
+        Destroy(step.placedObject);
+        step.placedObject = null;
+
+        // Avanzar al siguiente paso
+        currentStep++;
+
+        if (currentStep < cuttingSteps.Length)
+        {
+            Debug.Log($"[SNAP] Avanzando al paso {currentStep}: {cuttingSteps[currentStep].stepName}");
+            UpdateVisualIndicator();
+        }
+        else
+        {
+            Debug.Log("[SNAP] ¡Todos los pasos completados!");
+            UpdateVisualIndicator();
+        }
+    }
+
+    /// <summary>
+    /// Llamar este método cuando el cuchillo toca/corta el ingrediente (modo simple sin grilla)
     /// </summary>
     public void OnIngredientCut(GameObject ingredient)
     {
@@ -222,6 +287,13 @@ public class CuttingBoardSnapZone : MonoBehaviour
             return;
 
         CuttingStep step = cuttingSteps[currentStep];
+
+        // Si usa grilla progresiva, ignorar este método (la grilla maneja el corte)
+        if (step.useProgressiveGrid)
+        {
+            Debug.Log($"[SNAP] Ingrediente usa grilla progresiva. Corte simple ignorado.");
+            return;
+        }
 
         // Verificar que es el ingrediente del paso actual
         if (step.placedObject == ingredient && step.isPlaced && !step.isCut)

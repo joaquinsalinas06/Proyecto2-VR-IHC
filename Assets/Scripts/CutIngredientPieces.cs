@@ -156,7 +156,9 @@ public class CutIngredientPieces : MonoBehaviour
             return;
         }
 
-        Debug.Log($"[SPAWN] Centro de spawn: {centerPosition}");
+        // CRÍTICO: Elevar el centro de spawn para evitar colisión con la tabla
+        // Las piezas spawn en el aire y luego caen suavemente
+        Vector3 elevatedCenter = centerPosition + Vector3.up * 0.05f; // 5cm arriba
 
         for (int i = 0; i < configuration.specificPieces.Length; i++)
         {
@@ -168,13 +170,10 @@ public class CutIngredientPieces : MonoBehaviour
                 continue;
             }
 
-            // Posición relativa al centro
-            Vector3 spawnPos = centerPosition + piece.position;
-
-            Debug.Log($"[SPAWN] Pieza {i} ({piece.prefab.name}):");
-            Debug.Log($"  - Offset configurado: {piece.position}");
-            Debug.Log($"  - Posición final: {spawnPos}");
-            Debug.Log($"  - Rotación: {piece.rotation}");
+            // IMPORTANTE: Separar más las piezas para evitar que salgan volando
+            // Multiplicar el offset por 2.0 para mayor separación horizontal
+            Vector3 separatedOffset = piece.position * 2.0f;
+            Vector3 spawnPos = elevatedCenter + separatedOffset;
 
             // Rotación específica
             Quaternion rotation = Quaternion.Euler(piece.rotation);
@@ -211,7 +210,7 @@ public class CutIngredientPieces : MonoBehaviour
         rb.useGravity = false;
         rb.mass = configuration.pieceMass;
         rb.drag = configuration.pieceDrag;
-        rb.angularDrag = 1f; // Más resistencia a la rotación
+        rb.angularDrag = 1f;
 
         // Asegurar que tiene Collider
         Collider col = piece.GetComponent<Collider>();
@@ -223,8 +222,22 @@ public class CutIngredientPieces : MonoBehaviour
         // Desactivar collider temporalmente
         col.enabled = false;
 
-        // Activar física después de un breve delay
-        StartCoroutine(EnablePhysicsAfterDelay(piece, 0.3f));
+        // IMPORTANTE: Buscar Y IGNORAR colisiones con cuchillo INMEDIATAMENTE
+        List<Collider> knifeColliders = new List<Collider>();
+        GameObject[] knives = GameObject.FindGameObjectsWithTag("Knife");
+
+        foreach (GameObject knife in knives)
+        {
+            // Obtener TODOS los colliders del cuchillo y sus hijos (incluyendo Blade)
+            Collider[] colliders = knife.GetComponentsInChildren<Collider>();
+            foreach (Collider knifeCol in colliders)
+            {
+                knifeColliders.Add(knifeCol);
+            }
+        }
+
+        // Activar física después de un breve delay, pasando los colliders del cuchillo
+        StartCoroutine(EnablePhysicsAfterDelay(piece, 0.3f, knifeColliders));
 
         // Guardar renderer para highlight
         Renderer renderer = piece.GetComponent<Renderer>();
@@ -237,27 +250,61 @@ public class CutIngredientPieces : MonoBehaviour
         pieces.Add(piece);
     }
 
-    System.Collections.IEnumerator EnablePhysicsAfterDelay(GameObject piece, float delay)
+    System.Collections.IEnumerator EnablePhysicsAfterDelay(GameObject piece, float delay, List<Collider> knifeColliders)
     {
         yield return new WaitForSeconds(delay);
 
         if (piece == null) yield break;
 
-        // Activar collider
+        Rigidbody rb = piece.GetComponent<Rigidbody>();
         Collider col = piece.GetComponent<Collider>();
+
+        // IMPORTANTE: Ignorar colisiones con TODOS los colliders del cuchillo
+        List<Collider> ignoredColliders = new List<Collider>();
+
+        foreach (Collider knifeCol in knifeColliders)
+        {
+            if (knifeCol != null && col != null)
+            {
+                Physics.IgnoreCollision(col, knifeCol, true);
+                ignoredColliders.Add(knifeCol);
+            }
+        }
+
+        // Activar collider
         if (col != null)
         {
             col.enabled = true;
         }
 
         // Activar física suavemente
-        Rigidbody rb = piece.GetComponent<Rigidbody>();
         if (rb != null)
         {
             rb.isKinematic = false;
             rb.useGravity = true;
             rb.velocity = Vector3.zero;
             rb.angularVelocity = Vector3.zero;
+        }
+
+        // Restaurar colisiones después de 1.5 segundos
+        if (ignoredColliders.Count > 0)
+        {
+            StartCoroutine(RestoreCollisions(col, ignoredColliders, 1.5f));
+        }
+    }
+
+    System.Collections.IEnumerator RestoreCollisions(Collider pieceCollider, List<Collider> ignoredColliders, float delay)
+    {
+        yield return new WaitForSeconds(delay);
+
+        if (pieceCollider == null) yield break;
+
+        foreach (Collider ignored in ignoredColliders)
+        {
+            if (ignored != null && pieceCollider != null)
+            {
+                Physics.IgnoreCollision(pieceCollider, ignored, false);
+            }
         }
     }
 
