@@ -1,25 +1,27 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 /// <summary>
-/// Sistema de corte con una sola línea para ingredientes como limón
-/// El usuario debe cortar siguiendo la línea durante 2-3 segundos
+/// Sistema de corte con una línea curva para ingredientes como limón.
+/// El usuario debe cortar siguiendo la línea durante un tiempo determinado.
 /// </summary>
 public class SingleLineCut : MonoBehaviour
 {
-    [Header("Configuración de Línea")]
-    [Tooltip("Posición local de la línea de corte")]
-    public Vector3 linePosition = Vector3.zero;
+    [Header("Configuración de Curva")]
+    [Tooltip("Puntos de control para la curva de corte (3 puntos para una curva de Bézier cuadrática)")]
+    public Vector3[] curvePoints = new Vector3[3] {
+        new Vector3(-0.05f, 0, 0),
+        new Vector3(0, 0, 0.05f),
+        new Vector3(0.05f, 0, 0)
+    };
 
-    [Tooltip("Longitud de la línea visible")]
-    [Range(0.01f, 1f)]
-    public float lineLength = 0.15f;
+    [Tooltip("Resolución de la curva (cuántos segmentos la componen)")]
+    [Range(2, 50)]
+    public int curveResolution = 20;
 
     [Tooltip("Grosor de la línea")]
     [Range(0.001f, 0.02f)]
     public float lineThickness = 0.005f;
-
-    [Tooltip("La línea es horizontal (X) o vertical (Z)")]
-    public bool isHorizontal = true;
 
     [Header("Progreso de Corte")]
     [Tooltip("Tiempo mínimo cortando para completar (segundos)")]
@@ -32,16 +34,6 @@ public class SingleLineCut : MonoBehaviour
     [Range(0f, 5f)]
     public float lineEmissionIntensity = 2f;
 
-    [Header("Mitades del Ingrediente")]
-    [Tooltip("Prefab de la primera mitad")]
-    public GameObject halfPrefab1;
-
-    [Tooltip("Prefab de la segunda mitad")]
-    public GameObject halfPrefab2;
-
-    [Tooltip("Offset para separar las mitades al spawnear")]
-    public Vector3 separationOffset = new Vector3(0f, 0f, 0.02f);
-
     [Header("Detección de Cuchillo")]
     [Tooltip("Tag del cuchillo")]
     public string knifeTag = "Knife";
@@ -52,27 +44,17 @@ public class SingleLineCut : MonoBehaviour
     [Header("Debug")]
     public bool showDebugInfo = false;
 
-    // Estado interno
-    private GameObject lineObject;
-    private GameObject colliderObject;
+    // --- Estado interno ---
+    private GameObject lineVisualObject;      // Contiene el LineRenderer
+    private GameObject collidersParent;       // Padre de la cadena de colliders
     private bool isActive = false;
     private bool isCompleted = false;
     private float currentCutTime = 0f;
     private bool isKnifeCutting = false;
-    private float cutStartTime = 0f;
-
-    // Referencias spawneadas
-    private GameObject spawnedHalf1;
-    private GameObject spawnedHalf2;
-    private bool halvesSpawned = false;
+    private int activeDetectors = 0; // Contador de detectores activos
 
     // Evento cuando se completa el corte
     public System.Action OnCutCompleted;
-
-    void Start()
-    {
-        // No activar automáticamente, esperar a que se coloque en la tabla
-    }
 
     /// <summary>
     /// Activar el sistema de corte
@@ -83,10 +65,12 @@ public class SingleLineCut : MonoBehaviour
 
         isActive = true;
         currentCutTime = 0f;
-        cutStartTime = Time.time;
+        activeDetectors = 0;
 
         // Mostrar la línea de corte
         ShowCutLine();
+
+        Debug.LogWarning($"[SINGLE CUT] Sistema ACTIVADO en '{gameObject.name}'. Esperando al cuchillo...");
 
         if (showDebugInfo)
             Debug.Log($"[SINGLE CUT] Activado en {gameObject.name}");
@@ -103,75 +87,89 @@ public class SingleLineCut : MonoBehaviour
 
     void ShowCutLine()
     {
-        // Crear objeto visual de la línea
-        lineObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
-        lineObject.name = "CutLine_Visual";
-        lineObject.transform.SetParent(transform);
-        lineObject.transform.localPosition = linePosition;
-
-        // Escalar según orientación
-        if (isHorizontal)
+        if (curvePoints == null || curvePoints.Length < 2)
         {
-            // Horizontal: largo en Z
-            lineObject.transform.localScale = new Vector3(lineThickness, lineThickness, lineLength);
+            Debug.LogError("[SINGLE CUT] Se necesitan al menos 2 puntos para definir la curva.");
+            return;
+        }
+
+        // --- 1. Crear la línea visual con LineRenderer ---
+        lineVisualObject = new GameObject("CutLine_Visual");
+        lineVisualObject.transform.SetParent(transform, false);
+
+        LineRenderer lineRenderer = lineVisualObject.AddComponent<LineRenderer>();
+
+        // Calcular puntos de la curva
+        List<Vector3> points = new List<Vector3>();
+        for (int i = 0; i <= curveResolution; i++)
+        {
+            float t = i / (float)curveResolution;
+            points.Add(CalculateBezierPoint(t, curvePoints));
+        }
+
+        // Configurar LineRenderer
+        lineRenderer.positionCount = points.Count;
+        lineRenderer.SetPositions(points.ToArray());
+        lineRenderer.startWidth = lineThickness;
+        lineRenderer.endWidth = lineThickness;
+        lineRenderer.useWorldSpace = false;
+
+        // Configurar material brillante
+        if (lineMaterial != null)
+        {
+            lineRenderer.material = new Material(lineMaterial);
+            lineRenderer.material.color = lineColor;
+            lineRenderer.material.SetColor("_EmissionColor", lineColor * lineEmissionIntensity);
         }
         else
         {
-            // Vertical: largo en X
-            lineObject.transform.localScale = new Vector3(lineLength, lineThickness, lineThickness);
-        }
-
-        // Desactivar collider de la visual
-        Collider visualCol = lineObject.GetComponent<Collider>();
-        if (visualCol != null)
-            Destroy(visualCol);
-
-        // Aplicar material brillante
-        Renderer renderer = lineObject.GetComponent<Renderer>();
-        if (renderer != null)
-        {
-            Material mat = new Material(lineMaterial != null ? lineMaterial : Shader.Find("Standard"));
+            // Fallback a un material estándar con emisión
+            Material mat = new Material(Shader.Find("Standard"));
             mat.color = lineColor;
             mat.EnableKeyword("_EMISSION");
             mat.SetColor("_EmissionColor", lineColor * lineEmissionIntensity);
-            mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
-            mat.SetFloat("_Metallic", 0.5f);
-            mat.SetFloat("_Glossiness", 0.8f);
-            renderer.material = mat;
+            lineRenderer.material = mat;
         }
 
-        // CREAR COLLIDER para detección
-        colliderObject = new GameObject("CutLine_Collider");
-        colliderObject.transform.SetParent(transform);
-        colliderObject.transform.localPosition = linePosition;
-        colliderObject.layer = gameObject.layer;
+        // --- 2. Crear la cadena de colliders ---
+        collidersParent = new GameObject("CutLine_Colliders");
+        collidersParent.transform.SetParent(transform, false);
+        collidersParent.layer = gameObject.layer;
 
-        BoxCollider col = colliderObject.AddComponent<BoxCollider>();
-        col.isTrigger = true;
-
-        // Hacer collider más grande para mejor detección
-        if (isHorizontal)
+        for (int i = 0; i < points.Count - 1; i++)
         {
-            col.size = new Vector3(lineThickness * 5f, lineThickness * 5f, lineLength);
-        }
-        else
-        {
-            col.size = new Vector3(lineLength, lineThickness * 5f, lineThickness * 5f);
-        }
+            GameObject segment = new GameObject($"Collider_Segment_{i}");
+            segment.transform.SetParent(collidersParent.transform, false);
 
-        // Agregar detector de cuchillo
-        SingleLineCutDetector detector = colliderObject.AddComponent<SingleLineCutDetector>();
-        detector.parentCut = this;
-        detector.minVelocity = minKnifeVelocity;
-        detector.knifeTag = knifeTag;
+            Vector3 startPoint = points[i];
+            Vector3 endPoint = points[i + 1];
+            
+            // Posicionar el segmento en el punto medio
+            segment.transform.localPosition = (startPoint + endPoint) / 2;
+            
+            // Orientar el segmento para que apunte al siguiente punto
+            segment.transform.LookAt(transform.TransformPoint(endPoint));
+
+            // Añadir y configurar el BoxCollider
+            BoxCollider col = segment.AddComponent<BoxCollider>();
+            col.isTrigger = true;
+            float segmentLength = Vector3.Distance(startPoint, endPoint);
+            col.size = new Vector3(lineThickness * 5, lineThickness * 5, segmentLength);
+
+            // Añadir el detector
+            SingleLineCutDetector detector = segment.AddComponent<SingleLineCutDetector>();
+            detector.parentCut = this;
+            detector.minVelocity = minKnifeVelocity;
+            detector.knifeTag = knifeTag;
+        }
     }
 
     void HideCutLine()
     {
-        if (lineObject != null)
-            Destroy(lineObject);
-        if (colliderObject != null)
-            Destroy(colliderObject);
+        if (lineVisualObject != null)
+            Destroy(lineVisualObject);
+        if (collidersParent != null)
+            Destroy(collidersParent);
     }
 
     void Update()
@@ -179,12 +177,11 @@ public class SingleLineCut : MonoBehaviour
         if (!isActive || isCompleted)
             return;
 
-        // Si el cuchillo está cortando, incrementar tiempo
+        // Si el cuchillo está cortando (al menos un detector activo), incrementar tiempo
         if (isKnifeCutting)
         {
             currentCutTime += Time.deltaTime;
 
-            // Verificar si se completó el corte
             if (currentCutTime >= requiredCutTime)
             {
                 CompleteCut();
@@ -193,20 +190,79 @@ public class SingleLineCut : MonoBehaviour
     }
 
     /// <summary>
-    /// Llamado por el detector cuando el cuchillo está cortando
+    /// Calcula un punto en una curva de Bézier (cuadrática, cúbica, etc.)
     /// </summary>
-    public void OnKnifeCutting()
+    Vector3 CalculateBezierPoint(float t, Vector3[] controlPoints)
     {
-        if (!isActive || isCompleted) return;
-        isKnifeCutting = true;
+        if (controlPoints.Length < 2) return Vector3.zero;
+
+        // Caso Lineal (2 puntos)
+        if (controlPoints.Length == 2)
+        {
+            return Vector3.Lerp(controlPoints[0], controlPoints[1], t);
+        }
+        
+        // Caso Cuadrático (3 puntos)
+        if (controlPoints.Length == 3)
+        {
+            Vector3 p0 = controlPoints[0];
+            Vector3 p1 = controlPoints[1];
+            Vector3 p2 = controlPoints[2];
+            float u = 1 - t;
+            return (u * u * p0) + (2 * u * t * p1) + (t * t * p2);
+        }
+
+        // Caso Cúbico (4 puntos)
+        if (controlPoints.Length == 4)
+        {
+            Vector3 p0 = controlPoints[0];
+            Vector3 p1 = controlPoints[1];
+            Vector3 p2 = controlPoints[2];
+            Vector3 p3 = controlPoints[3];
+            float u = 1 - t;
+            float tt = t * t;
+            float uu = u * u;
+            float uuu = uu * u;
+            float ttt = tt * t;
+            return uuu * p0 + 3 * uu * t * p1 + 3 * u * tt * p2 + ttt * p3;
+        }
+        
+        // Fallback para más de 4 puntos (no es una Bézier verdadera, pero funciona)
+        // Se puede mejorar con splines (Catmull-Rom) si es necesario
+        int numSegments = controlPoints.Length - 1;
+        int currentSegment = Mathf.Min(Mathf.FloorToInt(t * numSegments), numSegments - 1);
+        float localT = (t * numSegments) - currentSegment;
+        return Vector3.Lerp(controlPoints[currentSegment], controlPoints[currentSegment + 1], localT);
     }
 
     /// <summary>
-    /// Llamado cuando el cuchillo sale de la zona
+    /// Llamado por el detector cuando el cuchillo empieza a cortar
     /// </summary>
-    public void OnKnifeExit()
+    public void OnKnifeCuttingEnter()
     {
-        isKnifeCutting = false;
+        if (!isActive || isCompleted) return;
+        activeDetectors++;
+        isKnifeCutting = true;
+        Debug.Log($"[SINGLE CUT] OnKnifeCuttingEnter. Detectores activos: {activeDetectors}. Se considera cortando.");
+    }
+
+    /// <summary>
+    /// Llamado cuando el cuchillo sale de un detector
+    /// </summary>
+    public void OnKnifeCuttingExit()
+    {
+        if (!isActive || isCompleted) return;
+        activeDetectors--;
+        if (activeDetectors <= 0)
+        {
+            isKnifeCutting = false;
+            activeDetectors = 0; // Prevenir números negativos
+            Debug.LogWarning("[SINGLE CUT] OnKnifeCuttingExit. Último detector salido. Ya NO se considera cortando.");
+        }
+        else
+        {
+            Debug.Log($"[SINGLE CUT] OnKnifeCuttingExit. Detectores activos restantes: {activeDetectors}.");
+        }
     }
 
     void CompleteCut()
@@ -217,138 +273,46 @@ public class SingleLineCut : MonoBehaviour
         isActive = false;
 
         if (showDebugInfo)
-            Debug.Log($"[SINGLE CUT] ¡Corte completado! Tiempo: {currentCutTime:F1}s");
+            Debug.Log($"[SINGLE CUT] ¡Corte completado! Notificando a la tabla de cortar.");
 
-        // Ocultar línea
         HideCutLine();
-
-        // Spawnear las mitades después de un pequeño delay
-        Invoke(nameof(SpawnHalves), 0.2f);
-
         OnCutCompleted?.Invoke();
     }
 
-    void SpawnHalves()
-    {
-        if (halvesSpawned) return;
-        halvesSpawned = true;
-
-        Vector3 spawnPos = transform.position;
-        Quaternion spawnRot = transform.rotation;
-
-        // Spawnear primera mitad (ligeramente a la izquierda/arriba)
-        if (halfPrefab1 != null)
-        {
-            spawnedHalf1 = Instantiate(halfPrefab1, spawnPos - separationOffset, spawnRot);
-            PrepareHalf(spawnedHalf1);
-        }
-
-        // Spawnear segunda mitad (ligeramente a la derecha/abajo)
-        if (halfPrefab2 != null)
-        {
-            spawnedHalf2 = Instantiate(halfPrefab2, spawnPos + separationOffset, spawnRot);
-            PrepareHalf(spawnedHalf2);
-        }
-
-        // Ocultar el ingrediente original
-        Renderer[] renderers = GetComponentsInChildren<Renderer>();
-        foreach (Renderer r in renderers)
-        {
-            r.enabled = false;
-        }
-
-        // Deshabilitar colliders del original
-        Collider[] colliders = GetComponents<Collider>();
-        foreach (Collider c in colliders)
-        {
-            c.enabled = false;
-        }
-
-        if (showDebugInfo)
-            Debug.Log($"[SINGLE CUT] Mitades spawneadas en {spawnPos}");
-    }
-
-    void PrepareHalf(GameObject half)
-    {
-        // Asegurar que tenga Rigidbody
-        Rigidbody rb = half.GetComponent<Rigidbody>();
-        if (rb == null)
-            rb = half.AddComponent<Rigidbody>();
-
-        // Configurar física: quietas al inicio
-        rb.isKinematic = true;
-        rb.useGravity = false;
-
-        // Después de un delay, habilitar física para que se puedan agarrar
-        StartCoroutine(EnableHalfPhysicsAfterDelay(rb, 1f));
-    }
-
-    System.Collections.IEnumerator EnableHalfPhysicsAfterDelay(Rigidbody rb, float delay)
-    {
-        yield return new WaitForSeconds(delay);
-
-        // Habilitar física
-        rb.isKinematic = false;
-        rb.useGravity = true;
-
-        if (showDebugInfo)
-            Debug.Log($"[SINGLE CUT] Física habilitada en mitad");
-    }
-
-    public bool IsComplete()
-    {
-        return isCompleted;
-    }
-
-    public float GetProgress()
-    {
-        return Mathf.Clamp01(currentCutTime / requiredCutTime);
-    }
+    public bool IsComplete() => isCompleted;
+    public float GetProgress() => Mathf.Clamp01(currentCutTime / requiredCutTime);
 
     void OnDestroy()
     {
         HideCutLine();
     }
 
-    // Gizmos para visualización en el editor
     void OnDrawGizmos()
     {
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireCube(transform.position, Vector3.one * 0.02f);
+        if (curvePoints == null || curvePoints.Length < 2) return;
 
-        // Dibujar línea de corte
         Gizmos.color = lineColor;
-        Vector3 worldPos = transform.TransformPoint(linePosition);
+        Vector3 lastPoint = transform.TransformPoint(curvePoints[0]);
 
-        Vector3 start, end;
-        if (isHorizontal)
+        for (int i = 1; i <= curveResolution; i++)
         {
-            start = worldPos - transform.forward * lineLength / 2f;
-            end = worldPos + transform.forward * lineLength / 2f;
-        }
-        else
-        {
-            start = worldPos - transform.right * lineLength / 2f;
-            end = worldPos + transform.right * lineLength / 2f;
+            float t = i / (float)curveResolution;
+            Vector3 currentPoint = transform.TransformPoint(CalculateBezierPoint(t, curvePoints));
+            Gizmos.DrawLine(lastPoint, currentPoint);
+            lastPoint = currentPoint;
         }
 
-        // Línea gruesa
-        Gizmos.DrawLine(start, end);
-        Vector3 offset = transform.up * lineThickness;
-        Gizmos.DrawLine(start + offset, end + offset);
-        Gizmos.DrawLine(start - offset, end - offset);
-
-        #if UNITY_EDITOR
-        string progressText = Application.isPlaying && isActive
-            ? $"{GetProgress() * 100f:F0}%"
-            : "Cortar aquí";
-        UnityEditor.Handles.Label(worldPos + Vector3.up * 0.02f, progressText);
-        #endif
+        // Dibujar los puntos de control
+        Gizmos.color = Color.red;
+        for (int i = 0; i < curvePoints.Length; i++)
+        {
+            Gizmos.DrawSphere(transform.TransformPoint(curvePoints[i]), 0.01f);
+        }
     }
 }
 
 /// <summary>
-/// Detector de cuchillo para el sistema de corte simple
+/// Detector de cuchillo para el sistema de corte simple. Ahora notifica al entrar y salir.
 /// </summary>
 public class SingleLineCutDetector : MonoBehaviour
 {
@@ -356,45 +320,35 @@ public class SingleLineCutDetector : MonoBehaviour
     [HideInInspector] public float minVelocity = 0.1f;
     [HideInInspector] public string knifeTag = "Knife";
 
-    private Vector3 lastKnifePosition;
-    private float lastKnifeTime;
+    private bool isKnifeInside = false;
 
     void OnTriggerEnter(Collider other)
     {
+        Debug.Log($"[CUT DETECTOR] OnTriggerEnter: Un objeto llamado '{other.name}' con tag '{other.tag}' ha entrado en un segmento de corte.");
+
+        if (isKnifeInside) return; // Ya hay un cuchillo dentro
+
         if (other.CompareTag(knifeTag) || other.name.Contains("Blade"))
         {
-            lastKnifePosition = other.transform.position;
-            lastKnifeTime = Time.time;
+            Debug.LogWarning($"[CUT DETECTOR] ¡CUCHILLO DETECTADO! '{other.name}' ha entrado.");
+            isKnifeInside = true;
+            parentCut?.OnKnifeCuttingEnter();
         }
-    }
-
-    void OnTriggerStay(Collider other)
-    {
-        if (other.CompareTag(knifeTag) || other.name.Contains("Blade"))
+        else
         {
-            float deltaTime = Time.time - lastKnifeTime;
-
-            if (deltaTime > 0.001f)
-            {
-                Vector3 deltaPosition = other.transform.position - lastKnifePosition;
-                float velocity = deltaPosition.magnitude / deltaTime;
-
-                if (velocity > minVelocity)
-                {
-                    parentCut?.OnKnifeCutting();
-                }
-
-                lastKnifePosition = other.transform.position;
-                lastKnifeTime = Time.time;
-            }
+            Debug.Log($"[CUT DETECTOR] El objeto '{other.name}' no es un cuchillo. Ignorando.");
         }
     }
 
     void OnTriggerExit(Collider other)
     {
+        if (!isKnifeInside) return;
+
         if (other.CompareTag(knifeTag) || other.name.Contains("Blade"))
         {
-            parentCut?.OnKnifeExit();
+            Debug.LogWarning($"[CUT DETECTOR] ¡CUCHILLO HA SALIDO! '{other.name}' ha salido.");
+            isKnifeInside = false;
+            parentCut?.OnKnifeCuttingExit();
         }
     }
 }

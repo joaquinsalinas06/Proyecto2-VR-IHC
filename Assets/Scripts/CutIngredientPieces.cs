@@ -191,52 +191,61 @@ public class CutIngredientPieces : MonoBehaviour
     {
         if (prefab == null)
         {
-            Debug.LogError("[CUT] Prefab es null, no se puede crear pieza.");
+            Debug.LogError("[CutIngredientPieces] El prefab asignado es NULO. No se puede crear la pieza.");
             return;
         }
 
-        // Instanciar pedazo
         GameObject piece = Instantiate(prefab, position, rotation, transform);
+        Debug.Log($"[CutIngredientPieces] Instanciada la pieza '{piece.name}' desde el prefab '{prefab.name}'.");
 
-        // Asegurar que tiene Rigidbody
+        // --- Comprobación de Rigidbody ---
         Rigidbody rb = piece.GetComponent<Rigidbody>();
         if (rb == null)
         {
             rb = piece.AddComponent<Rigidbody>();
+            Debug.LogWarning($"[CutIngredientPieces] El prefab '{prefab.name}' no tenía Rigidbody. Se ha añadido uno.");
         }
 
-        // IMPORTANTE: Empezar como kinematic para evitar explosiones
-        rb.isKinematic = true;
-        rb.useGravity = false;
-        rb.mass = configuration.pieceMass;
-        rb.drag = configuration.pieceDrag;
-        rb.angularDrag = 1f;
-
-        // Asegurar que tiene Collider
+        // --- Comprobación de Collider ---
         Collider col = piece.GetComponent<Collider>();
         if (col == null)
         {
             col = piece.AddComponent<BoxCollider>();
+            Debug.LogWarning($"[CutIngredientPieces] El prefab '{prefab.name}' no tenía Collider. Se ha añadido un BoxCollider por defecto.");
         }
-
-        // Desactivar collider temporalmente
-        col.enabled = false;
-
-        // IMPORTANTE: Buscar Y IGNORAR colisiones con cuchillo INMEDIATAMENTE
+        if (col is MeshCollider meshCol && !meshCol.convex)
+        {
+            meshCol.convex = true;
+            Debug.LogWarning($"[CutIngredientPieces] El MeshCollider en '{prefab.name}' no era convexo. Se ha corregido a 'convex = true'.");
+        }
+        
+        // Empezar como kinemático y desactivar collider para evitar explosiones
+        rb.isKinematic = true;
+        rb.useGravity = false;
+        col.enabled = false; 
+        rb.mass = configuration.pieceMass;
+        rb.drag = configuration.pieceDrag;
+        rb.angularDrag = 1f;
+        
+        // --- Ignorar Colisión con el Cuchillo ---
         List<Collider> knifeColliders = new List<Collider>();
         GameObject[] knives = GameObject.FindGameObjectsWithTag("Knife");
 
-        foreach (GameObject knife in knives)
+        if (knives.Length == 0)
         {
-            // Obtener TODOS los colliders del cuchillo y sus hijos (incluyendo Blade)
-            Collider[] colliders = knife.GetComponentsInChildren<Collider>();
-            foreach (Collider knifeCol in colliders)
-            {
-                knifeColliders.Add(knifeCol);
-            }
+            Debug.LogError("[CutIngredientPieces] ¡NO SE ENCONTRÓ NINGÚN CUCHILLO! Asegúrate de que tu cuchillo (o su filo) tiene el Tag 'Knife'. Las piezas podrían salir volando.");
+        }
+        else
+        {
+            Debug.Log($"[CutIngredientPieces] Se encontraron {knives.Length} objeto(s) con el Tag 'Knife'. Procediendo a ignorar sus colliders.");
         }
 
-        // Activar física después de un breve delay, pasando los colliders del cuchillo
+        foreach (GameObject knife in knives)
+        {
+            knifeColliders.AddRange(knife.GetComponentsInChildren<Collider>());
+        }
+
+        // Activar física después de un breve delay
         StartCoroutine(EnablePhysicsAfterDelay(piece, 0.3f, knifeColliders));
 
         // Guardar renderer para highlight
@@ -254,42 +263,46 @@ public class CutIngredientPieces : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
 
-        if (piece == null) yield break;
+        if (piece == null)
+        {
+            Debug.LogError("[CutIngredientPieces] La pieza fue destruida antes de poder activar su física.");
+            yield break;
+        }
 
         Rigidbody rb = piece.GetComponent<Rigidbody>();
         Collider col = piece.GetComponent<Collider>();
 
-        // IMPORTANTE: Ignorar colisiones con TODOS los colliders del cuchillo
-        List<Collider> ignoredColliders = new List<Collider>();
+        if (col == null || rb == null)
+        {
+            Debug.LogError($"[CutIngredientPieces] La pieza '{piece.name}' no tiene Rigidbody o Collider. No se puede activar la física.");
+            yield break;
+        }
 
+        // IMPORTANTE: Ignorar colisiones con TODOS los colliders del cuchillo
         foreach (Collider knifeCol in knifeColliders)
         {
-            if (knifeCol != null && col != null)
+            if (knifeCol != null)
             {
                 Physics.IgnoreCollision(col, knifeCol, true);
-                ignoredColliders.Add(knifeCol);
             }
         }
+        Debug.Log($"[CutIngredientPieces] Ignorando colisión entre '{piece.name}' y {knifeColliders.Count} colliders de cuchillo.");
 
         // Activar collider
-        if (col != null)
-        {
-            col.enabled = true;
-        }
+        col.enabled = true;
+        
+        // Activar física
+        rb.isKinematic = false;
+        rb.useGravity = true;
+        rb.velocity = Vector3.zero;
+        rb.angularVelocity = Vector3.zero;
+        
+        Debug.Log($"[CutIngredientPieces] Física activada en '{piece.name}'.");
 
-        // Activar física suavemente
-        if (rb != null)
+        // Restaurar colisiones después de un tiempo
+        if (knifeColliders.Count > 0)
         {
-            rb.isKinematic = false;
-            rb.useGravity = true;
-            rb.velocity = Vector3.zero;
-            rb.angularVelocity = Vector3.zero;
-        }
-
-        // Restaurar colisiones después de 1.5 segundos
-        if (ignoredColliders.Count > 0)
-        {
-            StartCoroutine(RestoreCollisions(col, ignoredColliders, 1.5f));
+            StartCoroutine(RestoreCollisions(col, knifeColliders, 1.5f));
         }
     }
 
@@ -301,11 +314,12 @@ public class CutIngredientPieces : MonoBehaviour
 
         foreach (Collider ignored in ignoredColliders)
         {
-            if (ignored != null && pieceCollider != null)
+            if (ignored != null && pieceCollider != null) // Doble chequeo por si algo se destruyó
             {
                 Physics.IgnoreCollision(pieceCollider, ignored, false);
             }
         }
+        Debug.Log($"[CutIngredientPieces] Colisiones con el cuchillo restauradas para '{pieceCollider.gameObject.name}'.");
     }
 
     void Update()

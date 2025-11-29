@@ -5,8 +5,8 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// Configuración automática para cortar el limón a la mitad
-/// Los valores están hardcodeados para persistir entre sesiones
+/// Configuración automática para cortar el limón a la mitad con una línea curva.
+/// Los valores están hardcodeados para persistir entre sesiones.
 /// </summary>
 [RequireComponent(typeof(SingleLineCut))]
 public class LemonCutSetup : MonoBehaviour
@@ -16,19 +16,22 @@ public class LemonCutSetup : MonoBehaviour
     public bool autoSetupOnStart = true;
 
     [Header("Referencias")]
-    public GameObject halfPrefab1;
-    public GameObject halfPrefab2;
     public Material lineMaterial;
 
     // ============================================================
     // VALORES FIJOS PARA EL LIMÓN - Edita aquí para cambiar
     // ============================================================
-    private const float LINE_LENGTH = 0.15f;          // Largo de la línea
-    private const float LINE_THICKNESS = 0.005f;      // Grosor
+    private const float LINE_THICKNESS = 0.01f;      // Grosor
     private const float REQUIRED_CUT_TIME = 2.5f;     // Tiempo de corte requerido
-    private static readonly Vector3 LINE_POSITION = new Vector3(0f, 0f, 0f);  // Centro del limón
-    private const bool IS_HORIZONTAL = true;          // Línea horizontal
-    private static readonly Vector3 SEPARATION_OFFSET = new Vector3(0f, 0f, 0.02f);  // Separación de mitades
+    
+    // Puntos de control para una curva de 5 puntos que se ajusta a la forma del limón
+    private static readonly Vector3[] DEFAULT_CURVE_POINTS = new Vector3[5] {
+        new Vector3(2.4f, 2f, 0.6f),
+        new Vector3(2.4f, 4.2f, -0.4f),
+        new Vector3(2.4f, 4.6f, -2.3f),
+        new Vector3(2.4f, 4.3f, -3.8f),
+        new Vector3(2.4f, 2f, -4.6f)
+    };
 
     void Start()
     {
@@ -39,7 +42,7 @@ public class LemonCutSetup : MonoBehaviour
     }
 
     /// <summary>
-    /// Configura el sistema de corte con valores hardcodeados
+    /// Configura el sistema de corte con valores hardcodeados para la curva.
     /// </summary>
     public void SetupLemonCut()
     {
@@ -50,23 +53,17 @@ public class LemonCutSetup : MonoBehaviour
             return;
         }
 
-        // Configurar valores
-        cutSystem.linePosition = LINE_POSITION;
-        cutSystem.lineLength = LINE_LENGTH;
+        // Configurar valores de la curva
+        cutSystem.curvePoints = DEFAULT_CURVE_POINTS;
+        cutSystem.curveResolution = 20; // Buena resolución por defecto
         cutSystem.lineThickness = LINE_THICKNESS;
-        cutSystem.isHorizontal = IS_HORIZONTAL;
         cutSystem.requiredCutTime = REQUIRED_CUT_TIME;
-        cutSystem.separationOffset = SEPARATION_OFFSET;
 
         // Configurar visual
         cutSystem.lineColor = Color.yellow;
         cutSystem.lineEmissionIntensity = 2f;
 
         // Configurar referencias
-        if (halfPrefab1 != null)
-            cutSystem.halfPrefab1 = halfPrefab1;
-        if (halfPrefab2 != null)
-            cutSystem.halfPrefab2 = halfPrefab2;
         if (lineMaterial != null)
             cutSystem.lineMaterial = lineMaterial;
 
@@ -77,7 +74,7 @@ public class LemonCutSetup : MonoBehaviour
         if (!Application.isPlaying)
         {
             EditorUtility.SetDirty(cutSystem);
-            Debug.Log("[LEMON SETUP] ✓ Limón configurado! Línea en el centro");
+            Debug.Log("[LEMON SETUP] ✓ Limón configurado con la NUEVA curva de 5 puntos!");
         }
         else
 #endif
@@ -85,26 +82,11 @@ public class LemonCutSetup : MonoBehaviour
             Debug.Log("[LEMON SETUP] ✓ Limón configurado en runtime!");
         }
     }
-
-    /// <summary>
-    /// Ajustar posición de línea manualmente (útil para otros ingredientes)
-    /// </summary>
-    public void SetLinePosition(Vector3 position)
-    {
-        SingleLineCut cutSystem = GetComponent<SingleLineCut>();
-        if (cutSystem != null)
-        {
-            cutSystem.linePosition = position;
-#if UNITY_EDITOR
-            EditorUtility.SetDirty(cutSystem);
-#endif
-        }
-    }
 }
 
 #if UNITY_EDITOR
 /// <summary>
-/// Editor personalizado con botón de setup
+/// Editor personalizado con botón de setup.
 /// </summary>
 [CustomEditor(typeof(LemonCutSetup))]
 public class LemonCutSetupEditor : Editor
@@ -118,6 +100,7 @@ public class LemonCutSetupEditor : Editor
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox(
             "Este script usa valores HARDCODEADOS para el limón.\n" +
+            "Aplica una configuración de línea de corte CURVA de 5 puntos por defecto.\n" +
             "Presiona el botón para aplicar la configuración.",
             MessageType.Info
         );
@@ -129,11 +112,8 @@ public class LemonCutSetupEditor : Editor
 
         EditorGUILayout.Space();
         EditorGUILayout.HelpBox(
-            "Para cambiar valores permanentemente:\n" +
-            "- LINE_POSITION: Posición de la línea\n" +
-            "- LINE_LENGTH: Largo de la línea\n" +
-            "- REQUIRED_CUT_TIME: Tiempo necesario para cortar\n" +
-            "- SEPARATION_OFFSET: Separación entre mitades",
+            "Para cambiar valores permanentemente, edita los valores estáticos en este script.\n" +
+            "Para ajustes visuales, modifica el array 'Curve Points' en el componente 'Single Line Cut' después de aplicar la configuración.",
             MessageType.Info
         );
     }

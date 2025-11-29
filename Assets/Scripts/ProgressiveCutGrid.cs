@@ -68,8 +68,6 @@ public class ProgressiveCutGrid : MonoBehaviour
 
     private int currentLineIndex = 0;
     private bool isActive = false;
-    private float currentCutTimer = 0f;
-    private bool isNearLine = false;
     private AudioSource audioSource;
     private float lastProgressSoundTime = 0f;
     private float lineStartTime = 0f; // Tiempo cuando empezó a cortar la línea actual
@@ -308,8 +306,6 @@ public class ProgressiveCutGrid : MonoBehaviour
         }
 
         // Resetear estado
-        currentCutTimer = 0f;
-        isNearLine = false;
     }
 
     void HideAllLines()
@@ -504,7 +500,6 @@ public class CutLineCollider : MonoBehaviour
     [HideInInspector] public ProgressiveCutGrid grid;
     [HideInInspector] public int lineIndex;
 
-    private bool isKnifeInside = false;
     private Vector3 lastKnifePosition;
     private float lastKnifeTime;
     private Transform knifeTransform;
@@ -513,7 +508,6 @@ public class CutLineCollider : MonoBehaviour
     {
         if (other.CompareTag("Knife") || other.name.Contains("Blade"))
         {
-            isKnifeInside = true;
             knifeTransform = other.transform;
             lastKnifePosition = other.transform.position;
             lastKnifeTime = Time.time;
@@ -552,7 +546,6 @@ public class CutLineCollider : MonoBehaviour
     {
         if (other.CompareTag("Knife") || other.name.Contains("Blade"))
         {
-            isKnifeInside = false;
             Debug.Log($"[GRID COLLIDER] Cuchillo salió de línea {lineIndex + 1}");
         }
     }

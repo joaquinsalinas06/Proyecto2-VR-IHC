@@ -309,12 +309,22 @@ public class CuttingBoardSnapZone : MonoBehaviour
         if (step == null || step.isCut)
             return;
 
-        Debug.Log($"[SNAP] ¡Corte simple completado! Paso {currentStep} completado: {step.stepName}");
+        Debug.Log($"[SNAP] ¡Corte de línea simple completado! Paso {currentStep} completado: {step.stepName}");
 
         step.isCut = true;
 
-        // NOTA: El SingleLineCut ya spawneó las mitades automáticamente
-        // Solo necesitamos avanzar al siguiente paso
+        // Guardar posición del ingrediente antes de destruirlo
+        Vector3 ingredientPosition = step.placedObject.transform.position;
+
+        // EFECTOS VISUALES Y DE AUDIO al completar el corte
+        PlayCutCompleteEffects(ingredientPosition);
+
+        // GENERAR PEDAZOS CORTADOS usando el sistema centralizado
+        SpawnCutPieces(step, ingredientPosition);
+
+        // DESTRUIR el ingrediente original (desaparece)
+        Destroy(step.placedObject);
+        step.placedObject = null;
 
         // Avanzar al siguiente paso
         currentStep++;
