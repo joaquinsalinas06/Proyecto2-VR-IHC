@@ -23,8 +23,11 @@ public class CuttingBoardSnapZone : MonoBehaviour
         public string requiredIngredientTag;    // Tag del ingrediente que se necesita
 
         [Header("Modo de Corte")]
-        [Tooltip("Si true, usa grilla progresiva. Si false, un solo corte simple")]
+        [Tooltip("Si true, usa grilla progresiva (múltiples líneas). Si false, puede usar corte simple (una línea)")]
         public bool useProgressiveGrid = false;
+
+        [Tooltip("Si true, usa corte de una sola línea (ej: limón). Si false y no usa grid, corte simple tradicional")]
+        public bool useSingleLineCut = false;
 
         [Header("Pedazos Cortados")]
         public CutIngredientPieces.PieceConfiguration pieceConfiguration;
@@ -34,6 +37,7 @@ public class CuttingBoardSnapZone : MonoBehaviour
         [HideInInspector] public GameObject placedObject; // Referencia al objeto colocado
         [HideInInspector] public CutIngredientPieces cutPieces; // Referencia a los pedazos
         [HideInInspector] public ProgressiveCutGrid progressiveGrid; // Referencia a la grilla progresiva
+        [HideInInspector] public SingleLineCut singleLineCut; // Referencia al corte simple de una línea
     }
 
     [Header("Snap Point")]
@@ -190,6 +194,25 @@ public class CuttingBoardSnapZone : MonoBehaviour
                 Debug.LogWarning($"[SNAP] {ingredient.name} tiene useProgressiveGrid=true pero no tiene componente ProgressiveCutGrid!");
             }
         }
+        // Si usa corte de una sola línea, activarlo
+        else if (step.useSingleLineCut)
+        {
+            SingleLineCut singleCut = ingredient.GetComponent<SingleLineCut>();
+            if (singleCut != null)
+            {
+                step.singleLineCut = singleCut;
+                singleCut.Activate();
+
+                // Suscribirse al evento de completado
+                singleCut.OnCutCompleted = () => OnSingleLineCutCompleted(step);
+
+                Debug.Log($"[SNAP] Corte de línea simple activado para {ingredient.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[SNAP] {ingredient.name} tiene useSingleLineCut=true pero no tiene componente SingleLineCut!");
+            }
+        }
 
         // Feedback
         PlaySnapSound();
@@ -279,6 +302,36 @@ public class CuttingBoardSnapZone : MonoBehaviour
     }
 
     /// <summary>
+    /// Llamado cuando se completa un corte de línea simple (ej: limón)
+    /// </summary>
+    void OnSingleLineCutCompleted(CuttingStep step)
+    {
+        if (step == null || step.isCut)
+            return;
+
+        Debug.Log($"[SNAP] ¡Corte simple completado! Paso {currentStep} completado: {step.stepName}");
+
+        step.isCut = true;
+
+        // NOTA: El SingleLineCut ya spawneó las mitades automáticamente
+        // Solo necesitamos avanzar al siguiente paso
+
+        // Avanzar al siguiente paso
+        currentStep++;
+
+        if (currentStep < cuttingSteps.Length)
+        {
+            Debug.Log($"[SNAP] Avanzando al paso {currentStep}: {cuttingSteps[currentStep].stepName}");
+            UpdateVisualIndicator();
+        }
+        else
+        {
+            Debug.Log("[SNAP] ¡Todos los pasos completados!");
+            UpdateVisualIndicator();
+        }
+    }
+
+    /// <summary>
     /// Llamar este método cuando el cuchillo toca/corta el ingrediente (modo simple sin grilla)
     /// </summary>
     public void OnIngredientCut(GameObject ingredient)
@@ -292,6 +345,13 @@ public class CuttingBoardSnapZone : MonoBehaviour
         if (step.useProgressiveGrid)
         {
             Debug.Log($"[SNAP] Ingrediente usa grilla progresiva. Corte simple ignorado.");
+            return;
+        }
+
+        // Si usa corte de línea simple, ignorar este método (SingleLineCut maneja el corte)
+        if (step.useSingleLineCut)
+        {
+            Debug.Log($"[SNAP] Ingrediente usa corte de línea simple. Corte simple ignorado.");
             return;
         }
 

@@ -53,14 +53,27 @@ public class ProgressiveCutGrid : MonoBehaviour
     [Tooltip("Tiempo que el cuchillo debe estar cerca para completar el corte")]
     public float cutHoldTime = 0.3f;
 
+    [Header("Tiempo Mínimo de Corte (Seguro)")]
+    [Tooltip("Tiempo mínimo que debe pasar cortando AUNQUE ya llegue al porcentaje requerido")]
+    [Range(0.5f, 5f)]
+    public float minimumCutTime = 1.5f;
+
     [Header("Audio")]
     public AudioClip lineCompleteSound;
+    [Tooltip("Sonido de feedback cada vez que avanza el corte (opcional)")]
+    public AudioClip cuttingProgressSound;
+    [Range(0f, 1f)]
+    [Tooltip("Volumen del sonido de progreso")]
+    public float progressSoundVolume = 0.3f;
 
     private int currentLineIndex = 0;
     private bool isActive = false;
     private float currentCutTimer = 0f;
     private bool isNearLine = false;
     private AudioSource audioSource;
+    private float lastProgressSoundTime = 0f;
+    private float lineStartTime = 0f; // Tiempo cuando empezó a cortar la línea actual
+    private const float PROGRESS_SOUND_INTERVAL = 0.5f; // Reproducir sonido cada 0.5 segundos (menos molesto)
 
     // Evento cuando se completan todos los cortes
     public System.Action OnAllCutsCompleted;
@@ -87,8 +100,6 @@ public class ProgressiveCutGrid : MonoBehaviour
         isActive = true;
         currentLineIndex = 0;
 
-        Debug.Log($"[GRID] Sistema de grilla activado. Total de líneas: {cutLines.Length}");
-
         // Mostrar la primera línea
         ShowCurrentLine();
     }
@@ -105,17 +116,16 @@ public class ProgressiveCutGrid : MonoBehaviour
     void ShowCurrentLine()
     {
         if (currentLineIndex >= cutLines.Length)
-        {
-            Debug.Log("[GRID] Todas las líneas completadas!");
             return;
-        }
 
         CutLine line = cutLines[currentLineIndex];
 
+        // Reiniciar el temporizador de la línea
+        lineStartTime = Time.time;
+        line.currentProgress = 0f;
+
         // Crear objeto visual de la línea
         line.lineObject = CreateLineVisual(line);
-
-        Debug.Log($"[GRID] Mostrando línea {currentLineIndex + 1}/{cutLines.Length} ({line.type})");
     }
 
     GameObject CreateLineVisual(CutLine line)
@@ -129,11 +139,13 @@ public class ProgressiveCutGrid : MonoBehaviour
         // Escalar según orientación
         if (line.type == CutLineType.Horizontal)
         {
-            lineObj.transform.localScale = new Vector3(line.length, line.thickness, line.thickness);
+            // Horizontal: largo en Z (hacia adelante/atrás), delgado en X y Y
+            lineObj.transform.localScale = new Vector3(line.thickness, line.thickness, line.length);
         }
         else // Vertical
         {
-            lineObj.transform.localScale = new Vector3(line.thickness, line.thickness, line.length);
+            // Vertical: largo en X (izquierda/derecha), delgado en Y y Z
+            lineObj.transform.localScale = new Vector3(line.length, line.thickness, line.thickness);
         }
 
         // Desactivar collider de la visual (no queremos que interactúe físicamente)
@@ -143,21 +155,34 @@ public class ProgressiveCutGrid : MonoBehaviour
             Destroy(visualCol);
         }
 
-        // Aplicar material
+        // COLOR ÚNICO para cada línea (para distinguirlas)
+        Color uniqueColor = GetLineColor(currentLineIndex);
+
+        // Aplicar material con efecto brillante/neon
         Renderer renderer = lineObj.GetComponent<Renderer>();
         if (renderer != null)
         {
             if (lineMaterial != null)
             {
-                renderer.material = lineMaterial;
+                renderer.material = new Material(lineMaterial);
+                renderer.material.color = uniqueColor;
+                renderer.material.SetColor("_EmissionColor", uniqueColor * lineEmissionIntensity);
             }
             else
             {
-                // Material simple con emisión
+                // Material con emisión brillante tipo neon
                 Material mat = new Material(Shader.Find("Standard"));
-                mat.color = lineColor;
+                mat.color = uniqueColor;
+
+                // Activar emisión con intensidad alta para efecto brillante
                 mat.EnableKeyword("_EMISSION");
-                mat.SetColor("_EmissionColor", lineColor * lineEmissionIntensity);
+                mat.SetColor("_EmissionColor", uniqueColor * lineEmissionIntensity);
+                mat.globalIlluminationFlags = MaterialGlobalIlluminationFlags.RealtimeEmissive;
+
+                // Hacer el material más brillante
+                mat.SetFloat("_Metallic", 0.5f);
+                mat.SetFloat("_Glossiness", 0.8f);
+
                 renderer.material = mat;
             }
         }
@@ -175,11 +200,13 @@ public class ProgressiveCutGrid : MonoBehaviour
         // Hacer el collider más grande que la visual para mejor detección
         if (line.type == CutLineType.Horizontal)
         {
-            col.size = new Vector3(line.length, line.thickness * 5f, line.thickness * 5f);
+            // Horizontal: largo en Z, ancho en X e Y
+            col.size = new Vector3(line.thickness * 5f, line.thickness * 5f, line.length);
         }
         else // Vertical
         {
-            col.size = new Vector3(line.thickness * 5f, line.thickness * 5f, line.length);
+            // Vertical: largo en X, ancho en Y y Z
+            col.size = new Vector3(line.length, line.thickness * 5f, line.thickness * 5f);
         }
 
         // Agregar componente para identificar esta línea
@@ -202,8 +229,12 @@ public class ProgressiveCutGrid : MonoBehaviour
         // Solo verificamos el progreso aquí
         CutLine currentLine = cutLines[currentLineIndex];
 
-        // Verificar si alcanzó el progreso requerido
-        if (currentLine.currentProgress >= currentLine.requiredProgress && !currentLine.isCompleted)
+        // Verificar si alcanzó el progreso requerido Y ha pasado el tiempo mínimo
+        float timeCutting = Time.time - lineStartTime;
+        bool hasEnoughProgress = currentLine.currentProgress >= currentLine.requiredProgress;
+        bool hasEnoughTime = timeCutting >= minimumCutTime;
+
+        if (hasEnoughProgress && hasEnoughTime && !currentLine.isCompleted)
         {
             CompleteLine();
         }
@@ -220,13 +251,17 @@ public class ProgressiveCutGrid : MonoBehaviour
         CutLine line = cutLines[lineIndex];
 
         // Incrementar progreso basado en tiempo
+        float previousProgress = line.currentProgress;
         line.currentProgress += Time.deltaTime / cutHoldTime;
         line.currentProgress = Mathf.Clamp01(line.currentProgress);
 
-        // Debug visual del progreso
-        if (Time.frameCount % 30 == 0) // Cada 30 frames
+        // Reproducir sonido de progreso si hay avance (solo si está asignado)
+        if (cuttingProgressSound != null &&
+            line.currentProgress > previousProgress &&
+            Time.time - lastProgressSoundTime >= PROGRESS_SOUND_INTERVAL)
         {
-            Debug.Log($"[GRID] Progreso línea {lineIndex + 1}: {line.currentProgress * 100f:F0}% (requiere {line.requiredProgress * 100f:F0}%)");
+            audioSource.PlayOneShot(cuttingProgressSound, progressSoundVolume);
+            lastProgressSoundTime = Time.time;
         }
     }
 
@@ -292,6 +327,26 @@ public class ProgressiveCutGrid : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Obtener un color único para cada línea
+    /// </summary>
+    Color GetLineColor(int index)
+    {
+        Color[] colors = new Color[]
+        {
+            Color.red,      // Línea 0 - Roja
+            Color.green,    // Línea 1 - Verde
+            Color.blue,     // Línea 2 - Azul
+            Color.yellow    // Línea 3 - Amarilla
+        };
+
+        if (index < colors.Length)
+            return colors[index];
+
+        // Si hay más líneas, generar color aleatorio pero consistente
+        return Color.HSVToRGB((index * 0.25f) % 1f, 1f, 1f);
+    }
+
     void OnDestroy()
     {
         HideAllLines();
@@ -317,21 +372,21 @@ public class ProgressiveCutGrid : MonoBehaviour
         {
             CutLine line = cutLines[i];
 
-            // Color según estado - MÁS BRILLANTES
+            // Color según estado
             if (Application.isPlaying)
             {
-                // En Play mode: Verde si completada, Amarillo si activa, Blanco si pendiente
+                // En Play mode: Verde si completada, color único si activa, gris si pendiente
                 if (line.isCompleted)
                     Gizmos.color = Color.green;
                 else if (i == currentLineIndex && isActive)
-                    Gizmos.color = Color.yellow;
+                    Gizmos.color = GetLineColor(i);
                 else
-                    Gizmos.color = Color.white;
+                    Gizmos.color = Color.gray;
             }
             else
             {
-                // En Edit mode: CYAN BRILLANTE para todas
-                Gizmos.color = i == 0 ? Color.cyan : Color.blue;
+                // En Edit mode: USAR COLORES ÚNICOS para cada línea
+                Gizmos.color = GetLineColor(i);
             }
 
             Vector3 worldPos = transform.TransformPoint(line.localPosition);
@@ -370,7 +425,10 @@ public class ProgressiveCutGrid : MonoBehaviour
             #if UNITY_EDITOR
             if (!Application.isPlaying)
             {
-                UnityEditor.Handles.Label(worldPos + Vector3.up * 0.01f, $"L{i + 1}");
+                // Mostrar número con nombre del color
+                string[] colorNames = { "ROJA", "VERDE", "AZUL", "AMARILLA" };
+                string colorName = i < colorNames.Length ? colorNames[i] : $"L{i + 1}";
+                UnityEditor.Handles.Label(worldPos + Vector3.up * 0.01f, $"L{i + 1} ({colorName})");
             }
             else if (i == currentLineIndex && isActive)
             {
@@ -459,8 +517,6 @@ public class CutLineCollider : MonoBehaviour
             knifeTransform = other.transform;
             lastKnifePosition = other.transform.position;
             lastKnifeTime = Time.time;
-
-            Debug.Log($"[GRID COLLIDER] Cuchillo entró en línea {lineIndex + 1}");
         }
     }
 
@@ -475,12 +531,6 @@ public class CutLineCollider : MonoBehaviour
             {
                 Vector3 deltaPosition = other.transform.position - lastKnifePosition;
                 float manualVelocity = deltaPosition.magnitude / deltaTime;
-
-                // Log cada 15 frames para no saturar
-                if (Time.frameCount % 15 == 0)
-                {
-                    Debug.Log($"[GRID COLLIDER] OnTriggerStay línea {lineIndex + 1} - Velocidad manual: {manualVelocity:F2} m/s");
-                }
 
                 if (manualVelocity > 0.1f) // Velocidad mínima para contar como corte
                 {

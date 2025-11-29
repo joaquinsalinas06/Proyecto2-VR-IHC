@@ -5,47 +5,54 @@ using UnityEditor;
 #endif
 
 /// <summary>
-/// Script helper para configurar automáticamente una grilla 3x3
-/// Agrega este componente al prefab del pescado y presiona el botón "Setup Grid"
+/// Script helper para configurar automáticamente una grilla 3x3 para el pescado
+/// Los valores están hardcodeados para que NO se reinicien entre sesiones
 /// </summary>
 [RequireComponent(typeof(ProgressiveCutGrid))]
 public class GridSetup3x3 : MonoBehaviour
 {
-    [Header("Configuración de Grilla 3x3")]
-    [Tooltip("DESACTIVADO: Los valores están hardcodeados en el código")]
-    public bool autoSetup = true;
+    [Header("Auto Setup")]
+    [Tooltip("Si está activado, se configura automáticamente al iniciar")]
+    public bool autoSetupOnStart = true;
 
-    [Header("Solo Visual - Valores Hardcodeados en Código")]
-    [Tooltip("Material para las líneas de corte")]
+    [Header("Referencias (Opcional)")]
     public Material lineMaterial;
-
-    [Tooltip("Sonido al completar cada línea")]
     public AudioClip lineCompleteSound;
 
-    // VALORES FIJOS - Edita estos valores aquí para cambiar la configuración
-    private const float GRID_WIDTH = 0.294f;     // Ancho del pescado (X)
-    private const float GRID_LENGTH = 0.5f;      // Largo del pescado (Z)
-    private const float LINE_Y_POSITION = -0.06f; // Altura Y de las líneas
-    private const float LINE_THICKNESS = 0.003f;  // Grosor de líneas
-    private const float REQUIRED_PROGRESS = 0.8f; // 80% para completar
+    // ============================================================
+    // VALORES FIJOS PARA EL PESCADO - Edita aquí para cambiar
+    // Líneas visibles en la parte superior del pescado
+    // ============================================================
+    private const float LINE_THICKNESS = 0.003f;   // Grosor de líneas
+    private const float REQUIRED_PROGRESS = 0.8f;  // 80% para completar
 
-    // Posiciones X de las líneas verticales (según tu imagen)
-    private static readonly float[] VERTICAL_X_POSITIONS = { -0.05768667f, 0.05766866f };
+    // Líneas horizontales (2 líneas) - Element 0 y Element 1
+    // Valores EXACTOS del Inspector - CONFIGURACIÓN FINAL
+    private static readonly Vector3[] HORIZONTAL_LINES = new Vector3[]
+    {
+        new Vector3(0.04f, -0.055f, -0.107f),   // Element 0: Horizontal
+        new Vector3(0f, -0.04f, 0.107f)         // Element 1: Horizontal
+    };
+    private static readonly float[] HORIZONTAL_LENGTHS = { 0.203f, 0.186f };
 
-    // Posiciones Z de las líneas horizontales (según tu imagen)
-    private static readonly float[] HORIZONTAL_Z_POSITIONS = { -0.06f, 0.107f };
+    // Líneas verticales (2 líneas) - Element 2 y Element 3
+    private static readonly Vector3[] VERTICAL_LINES = new Vector3[]
+    {
+        new Vector3(-0.05768667f, -0.045f, 0f),  // Element 2: Vertical
+        new Vector3(0.05766866f, -0.055f, 0f)    // Element 3: Vertical
+    };
+    private static readonly float[] VERTICAL_LENGTHS = { 0.461f, 0.367f };
 
     void Start()
     {
-        if (autoSetup)
+        if (autoSetupOnStart)
         {
             SetupGrid();
         }
     }
 
     /// <summary>
-    /// Configura automáticamente la grilla 3x3
-    /// Crea 4 líneas horizontales y 4 líneas verticales
+    /// Configura automáticamente la grilla 3x3 con valores hardcodeados
     /// </summary>
     public void SetupGrid()
     {
@@ -56,101 +63,80 @@ public class GridSetup3x3 : MonoBehaviour
             return;
         }
 
-        // Para una grilla 3x3, necesitamos 4 líneas horizontales y 4 verticales
-        // Total: 8 líneas (primero horizontales, luego verticales para mejor UX)
-
-        // Para grilla 3x3, solo necesitamos líneas INTERNAS (no los bordes)
-        // 2 líneas horizontales + 2 líneas verticales = 4 líneas totales
+        // Crear array de 4 líneas (2 horizontales + 2 verticales)
         ProgressiveCutGrid.CutLine[] lines = new ProgressiveCutGrid.CutLine[4];
 
-        // LÍNEAS HORIZONTALES INTERNAS (2 líneas para dividir en 3 filas)
-        float horizontalSpacing = gridLength / 3f;
-
+        // LÍNEAS HORIZONTALES (índices 0 y 1)
         for (int i = 0; i < 2; i++)
         {
             lines[i] = new ProgressiveCutGrid.CutLine();
             lines[i].type = ProgressiveCutGrid.CutLineType.Horizontal;
-
-            // Posición: skip primera (i=0 es borde), usar i+1
-            float zPos = -gridLength / 2f + ((i + 1) * horizontalSpacing);
-            lines[i].localPosition = new Vector3(0, 0.01f, zPos); // Más arriba (1cm)
-
-            lines[i].length = gridWidth;
-            lines[i].thickness = 0.003f; // Más grueso para mejor detección
+            lines[i].localPosition = HORIZONTAL_LINES[i];
+            lines[i].length = HORIZONTAL_LENGTHS[i];
+            lines[i].thickness = LINE_THICKNESS;
+            lines[i].requiredProgress = REQUIRED_PROGRESS;
         }
 
-        // LÍNEAS VERTICALES INTERNAS (2 líneas para dividir en 3 columnas)
-        float verticalSpacing = gridWidth / 3f;
-
+        // LÍNEAS VERTICALES (índices 2 y 3)
         for (int i = 0; i < 2; i++)
         {
             lines[2 + i] = new ProgressiveCutGrid.CutLine();
             lines[2 + i].type = ProgressiveCutGrid.CutLineType.Vertical;
-
-            // Posición: skip primera (i=0 es borde), usar i+1
-            float xPos = -gridWidth / 2f + ((i + 1) * verticalSpacing);
-            lines[2 + i].localPosition = new Vector3(xPos, 0.01f, 0); // Más arriba (1cm)
-
-            lines[2 + i].length = gridLength;
-            lines[2 + i].thickness = 0.003f; // Más grueso
+            lines[2 + i].localPosition = VERTICAL_LINES[i];
+            lines[2 + i].length = VERTICAL_LENGTHS[i];
+            lines[2 + i].thickness = LINE_THICKNESS;
+            lines[2 + i].requiredProgress = REQUIRED_PROGRESS;
         }
 
-        // Asignar las líneas al grid
 #if UNITY_EDITOR
-        // En el editor, modificar el objeto serializado
-        SerializedObject so = new SerializedObject(grid);
-        SerializedProperty cutLinesProperty = so.FindProperty("cutLines");
-
-        cutLinesProperty.arraySize = 4;
-
-        for (int i = 0; i < 4; i++)
+        if (!Application.isPlaying)
         {
-            SerializedProperty lineElement = cutLinesProperty.GetArrayElementAtIndex(i);
+            // En el editor, usar SerializedObject para guardar correctamente
+            SerializedObject so = new SerializedObject(grid);
+            SerializedProperty cutLinesProperty = so.FindProperty("cutLines");
 
-            lineElement.FindPropertyRelative("type").enumValueIndex = (int)lines[i].type;
-            lineElement.FindPropertyRelative("localPosition").vector3Value = lines[i].localPosition;
-            lineElement.FindPropertyRelative("length").floatValue = lines[i].length;
-            lineElement.FindPropertyRelative("thickness").floatValue = lines[i].thickness;
-            lineElement.FindPropertyRelative("requiredProgress").floatValue = requiredProgress;
-        }
+            cutLinesProperty.arraySize = 4;
 
-        // Configurar propiedades visuales
-        so.FindProperty("lineMaterial").objectReferenceValue = lineMaterial;
-        so.FindProperty("lineColor").colorValue = lineColor;
-        so.FindProperty("lineEmissionIntensity").floatValue = lineEmissionIntensity;
-        so.FindProperty("lineCompleteSound").objectReferenceValue = lineCompleteSound;
+            for (int i = 0; i < 4; i++)
+            {
+                SerializedProperty lineElement = cutLinesProperty.GetArrayElementAtIndex(i);
 
-        so.ApplyModifiedProperties();
+                lineElement.FindPropertyRelative("type").enumValueIndex = (int)lines[i].type;
+                lineElement.FindPropertyRelative("localPosition").vector3Value = lines[i].localPosition;
+                lineElement.FindPropertyRelative("length").floatValue = lines[i].length;
+                lineElement.FindPropertyRelative("thickness").floatValue = lines[i].thickness;
+                lineElement.FindPropertyRelative("requiredProgress").floatValue = lines[i].requiredProgress;
+            }
 
-        EditorUtility.SetDirty(grid);
-        EditorUtility.SetDirty(gameObject);
+            // Configurar propiedades visuales
+            if (lineMaterial != null)
+                so.FindProperty("lineMaterial").objectReferenceValue = lineMaterial;
 
-        // IMPORTANTE: Guardar en el prefab si este objeto es parte de un prefab
-        UnityEngine.Object prefabRoot = PrefabUtility.GetCorrespondingObjectFromSource(gameObject);
-        if (prefabRoot != null)
-        {
-            // Es una instancia de prefab, guardar cambios en el prefab
-            PrefabUtility.RecordPrefabInstancePropertyModifications(grid);
-            PrefabUtility.RecordPrefabInstancePropertyModifications(this);
-            Debug.Log("[GRID SETUP] ✓ Cambios guardados en el PREFAB automáticamente!");
+            so.FindProperty("lineColor").colorValue = Color.white;
+            so.FindProperty("lineEmissionIntensity").floatValue = 2f;
+
+            if (lineCompleteSound != null)
+                so.FindProperty("lineCompleteSound").objectReferenceValue = lineCompleteSound;
+
+            so.ApplyModifiedProperties();
+            EditorUtility.SetDirty(grid);
+
+            Debug.Log("[GRID SETUP] ✓ Grilla 3x3 configurada! 4 líneas (2H + 2V)");
         }
         else
-        {
-            // Es un objeto en la escena, guardar la escena
-            UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(gameObject.scene);
-        }
-
-        Debug.Log("[GRID SETUP] ✓ Grilla 3x3 configurada exitosamente! 4 líneas internas creadas (2 horizontales + 2 verticales)");
-#else
-        // En runtime, asignar directamente
-        grid.cutLines = lines;
-        grid.lineMaterial = lineMaterial;
-        grid.lineColor = lineColor;
-        grid.lineEmissionIntensity = lineEmissionIntensity;
-        grid.lineCompleteSound = lineCompleteSound;
-
-        Debug.Log("[GRID SETUP] ✓ Grilla 3x3 configurada en runtime!");
 #endif
+        {
+            // En runtime, asignar directamente
+            grid.cutLines = lines;
+            if (lineMaterial != null)
+                grid.lineMaterial = lineMaterial;
+            grid.lineColor = Color.white;
+            grid.lineEmissionIntensity = 2f;
+            if (lineCompleteSound != null)
+                grid.lineCompleteSound = lineCompleteSound;
+
+            Debug.Log("[GRID SETUP] ✓ Grilla 3x3 configurada en runtime! 4 líneas (2H + 2V)");
+        }
     }
 }
 
@@ -168,12 +154,15 @@ public class GridSetup3x3Editor : Editor
         GridSetup3x3 setup = (GridSetup3x3)target;
 
         EditorGUILayout.Space();
-        EditorGUILayout.HelpBox("Presiona el botón para configurar automáticamente una grilla 3x3 con 8 líneas de corte.", MessageType.Info);
+        EditorGUILayout.HelpBox("Este script usa valores HARDCODEADOS.\nPresiona el botón para aplicar la configuración de grilla 3x3.", MessageType.Info);
 
         if (GUILayout.Button("Setup Grid 3x3", GUILayout.Height(40)))
         {
             setup.SetupGrid();
         }
+
+        EditorGUILayout.Space();
+        EditorGUILayout.HelpBox("Para cambiar posiciones permanentemente, edita las constantes en el código:\n- HORIZONTAL_LINES\n- VERTICAL_LINES\n- HORIZONTAL_LENGTH\n- VERTICAL_LENGTH", MessageType.Info);
     }
 }
 #endif
