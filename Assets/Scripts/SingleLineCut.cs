@@ -44,6 +44,12 @@ public class SingleLineCut : MonoBehaviour
     [Header("Debug")]
     public bool showDebugInfo = false;
 
+    [Header("Audio")]
+    public AudioClip cuttingSound; // Sonido al estar cortando
+    public AudioClip cutCompleteSound; // Sonido al finalizar el corte
+    [Range(0f, 1f)]
+    public float cuttingSoundVolume = 0.5f;
+
     // --- Estado interno ---
     private GameObject lineVisualObject;      // Contiene el LineRenderer
     private GameObject collidersParent;       // Padre de la cadena de colliders
@@ -52,9 +58,24 @@ public class SingleLineCut : MonoBehaviour
     private float currentCutTime = 0f;
     private bool isKnifeCutting = false;
     private int activeDetectors = 0; // Contador de detectores activos
+    private AudioSource audioSource;
+    private float lastCutSoundTime = 0f;
+    private const float CUT_SOUND_INTERVAL = 0.25f; // Intervalo para el sonido de corte
 
     // Evento cuando se completa el corte
     public System.Action OnCutCompleted;
+
+    void Awake()
+    {
+        // Configurar AudioSource
+        audioSource = GetComponent<AudioSource>();
+        if (audioSource == null)
+        {
+            audioSource = gameObject.AddComponent<AudioSource>();
+            audioSource.playOnAwake = false;
+            audioSource.spatialBlend = 1.0f; // Sonido 3D
+        }
+    }
 
     /// <summary>
     /// Activar el sistema de corte
@@ -182,6 +203,13 @@ public class SingleLineCut : MonoBehaviour
         {
             currentCutTime += Time.deltaTime;
 
+            // Reproducir sonido de corte a intervalos
+            if (cuttingSound != null && Time.time - lastCutSoundTime > CUT_SOUND_INTERVAL)
+            {
+                audioSource.PlayOneShot(cuttingSound, cuttingSoundVolume);
+                lastCutSoundTime = Time.time;
+            }
+
             if (currentCutTime >= requiredCutTime)
             {
                 CompleteCut();
@@ -274,6 +302,12 @@ public class SingleLineCut : MonoBehaviour
 
         if (showDebugInfo)
             Debug.Log($"[SINGLE CUT] ¡Corte completado! Notificando a la tabla de cortar.");
+
+        // Reproducir sonido de corte completado
+        if (cutCompleteSound != null && audioSource != null)
+        {
+            audioSource.PlayOneShot(cutCompleteSound);
+        }
 
         HideCutLine();
         OnCutCompleted?.Invoke();

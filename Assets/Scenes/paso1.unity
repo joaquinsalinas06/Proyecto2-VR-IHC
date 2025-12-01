@@ -1346,10 +1346,10 @@ MonoBehaviour:
       randomRotation: 1
       specificPieces:
       - prefab: {fileID: 1162479529102411822, guid: 62c9d3a75fc20b44a93ab0960b40c02f, type: 3}
-        position: {x: 0.069, y: 0, z: 0}
+        position: {x: 0.039, y: 0, z: 0}
         rotation: {x: 0, y: 0, z: 0}
       - prefab: {fileID: 8852881952830536833, guid: 27c05656a25f6c844bf5966bbd0b821c, type: 3}
-        position: {x: -0.069, y: 0, z: 0}
+        position: {x: -0.039, y: 0, z: 0}
         rotation: {x: 0, y: 180, z: 0}
       pieceMass: 0.005
       pieceDrag: 0.5
@@ -2130,6 +2130,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: a846e79828e0a7540bb6ba79e8777f2c, type: 3}
       insertIndex: -1
       addedObject: {fileID: 1772586262}
+    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: a846e79828e0a7540bb6ba79e8777f2c, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 1772586267}
   m_SourcePrefab: {fileID: 100100000, guid: a846e79828e0a7540bb6ba79e8777f2c, type: 3}
 --- !u!1 &640127558
 GameObject:
@@ -4155,6 +4158,41 @@ SphereCollider:
   serializedVersion: 3
   m_Radius: 0.005
   m_Center: {x: 0.00002281508, y: -0.002165085, z: 0.00052919495}
+--- !u!114 &1772586267
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1772586257}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8d5116f2a608a8c40b7a49fc7c5ecf61, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  curvedCutLines:
+  - curvePoints:
+    - {x: 0, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    - {x: 0, y: 0, z: 0}
+    curveResolution: 0
+    lineThickness: 0
+    requiredCutTime: 0
+    lineVisualObject: {fileID: 0}
+    collidersParent: {fileID: 0}
+    isCompleted: 0
+    currentCutTime: 0
+  lineMaterial: {fileID: 0}
+  initialLineColor: {r: 0, g: 1, b: 1, a: 1}
+  lineEmissionIntensity: 2.5
+  knifeTag: Knife
+  minKnifeVelocity: 0.1
+  lineCompleteSound: {fileID: 0}
+  cuttingSound: {fileID: 0}
+  soundVolume: 0.5
+  showDebugInfo: 0
 --- !u!1 &1783211348
 GameObject:
   m_ObjectHideFlags: 0
@@ -6117,6 +6155,9 @@ MonoBehaviour:
   knifeTag: Knife
   minKnifeVelocity: 0.1
   showDebugInfo: 0
+  cuttingSound: {fileID: 0}
+  cutCompleteSound: {fileID: 0}
+  cuttingSoundVolume: 0.5
 --- !u!114 &6662387315144137820
 MonoBehaviour:
   m_ObjectHideFlags: 0
