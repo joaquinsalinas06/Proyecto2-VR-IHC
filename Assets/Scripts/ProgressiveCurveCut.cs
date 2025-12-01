@@ -14,11 +14,11 @@ public class ProgressiveCurveCut : MonoBehaviour
         [Header("Configuración de Curva")]
         [Tooltip("Puntos de control para la curva de corte (5 para Bézier cúbica)")]
         public Vector3[] curvePoints = new Vector3[5] {
-            new Vector3(-2f, 1f, -2f),
-            new Vector3(-1f, 1f, 0f),
-            new Vector3(0f, 1f, 2f),
-            new Vector3(1f, 1f, 0f),
-            new Vector3(2f, 1f, -2f)
+            new Vector3(-0.05f, 0, 0),
+            new Vector3(-0.025f, 0, 0.025f),
+            new Vector3(0, 0, 0.05f),
+            new Vector3(0.025f, 0, 0.025f),
+            new Vector3(0.05f, 0, 0)
         };
 
         [Tooltip("Resolución de la curva")]
@@ -39,6 +39,18 @@ public class ProgressiveCurveCut : MonoBehaviour
         [HideInInspector] public GameObject collidersParent;
         [HideInInspector] public bool isCompleted = false;
         [HideInInspector] public float currentCutTime = 0f;
+
+        /// <summary>
+        /// Copia los valores de otra línea (excepto el estado interno)
+        /// </summary>
+        public void CopyFrom(CurvedCutLine other)
+        {
+            curvePoints = new Vector3[other.curvePoints.Length];
+            System.Array.Copy(other.curvePoints, curvePoints, other.curvePoints.Length);
+            curveResolution = other.curveResolution;
+            lineThickness = other.lineThickness;
+            requiredCutTime = other.requiredCutTime;
+        }
     }
 
     [Header("Configuración de Curvas Progresivas")]
@@ -338,7 +350,7 @@ public class ProgressiveCurveCut : MonoBehaviour
     public bool IsComplete() => currentLineIndex >= curvedCutLines.Length;
     public float GetProgress() => curvedCutLines.Length == 0 ? 0 : (float)currentLineIndex / curvedCutLines.Length;
 
-    void OnDrawGizmosSelected()
+    void OnDrawGizmos()
     {
         if (curvedCutLines == null) return;
         
@@ -358,6 +370,7 @@ public class ProgressiveCurveCut : MonoBehaviour
                 lastPoint = currentPoint;
             }
 
+            // Dibujar los puntos de control
             Gizmos.color = Color.red;
             for (int j = 0; j < line.curvePoints.Length; j++)
             {
