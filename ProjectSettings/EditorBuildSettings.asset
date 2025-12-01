@@ -8,12 +8,15 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/Scenes/MenuPrincipal.unity
     guid: fe18bd2f7d788f542b70be6a2cdcb928
-  - enabled: 1
+  - enabled: 0
     path: Assets/Scenes/paso1.unity
     guid: dfcc2d0ec6de3cd478171fe05624d612
   - enabled: 0
     path: Assets/Scenes/LomoSaltadoScene.unity
     guid: 276cad228193b6c47a3de9b451cc6efe
+  - enabled: 1
+    path: Assets/Scenes/paso2.unity
+    guid: 6b62261d55ef91f4c97caa286305408a
   m_configObjects:
     Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 78d61040948838a42b87ceed89670fd3, type: 2}
     com.unity.xr.management.loader_settings: {fileID: 11400000, guid: 4ef8687f95a0d4940b082d9a829cdc5a, type: 2}
