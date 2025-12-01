@@ -19,6 +19,10 @@ TagManager:
   - QDSUIBorderlessButton
   - FishCube
   - Knife
+  - Pescado
+  - Cebolla
+  - Limon
+  - Aji
   layers:
   - Default
   - TransparentFX
