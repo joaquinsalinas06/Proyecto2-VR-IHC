@@ -103,7 +103,13 @@ public class ProgressiveCurveCut : MonoBehaviour
 
     public void Activate()
     {
-        if (isActive || curvedCutLines.Length == 0) return;
+        if (isActive) return;
+        
+        if (curvedCutLines == null || curvedCutLines.Length == 0)
+        {
+            Debug.LogError("[PROGRESSIVE CURVE] No hay líneas de corte configuradas! Agrega al menos una línea en el Inspector.");
+            return;
+        }
 
         isActive = true;
         currentLineIndex = 0;
@@ -152,6 +158,13 @@ public class ProgressiveCurveCut : MonoBehaviour
         if (currentLineIndex >= curvedCutLines.Length) return;
 
         CurvedCutLine line = curvedCutLines[currentLineIndex];
+        
+        // Validar que la línea tenga puntos de curva configurados
+        if (line.curvePoints == null || line.curvePoints.Length == 0)
+        {
+            Debug.LogError($"[PROGRESSIVE CURVE] La línea {currentLineIndex} no tiene curvePoints configurados! Por favor configura los puntos en el Inspector.");
+            return;
+        }
         
         // --- 1. Crear Visual de la Curva ---
         line.lineVisualObject = new GameObject($"CurveVisual_{currentLineIndex}");
@@ -302,6 +315,12 @@ public class ProgressiveCurveCut : MonoBehaviour
 
     Vector3 CalculateBezierPoint(float t, Vector3[] controlPoints)
     {
+        if (controlPoints == null || controlPoints.Length == 0)
+        {
+            Debug.LogError("[PROGRESSIVE CURVE] ¡controlPoints es null o vacío!");
+            return Vector3.zero;
+        }
+        
         int n = controlPoints.Length - 1;
         if (n < 0) return Vector3.zero;
 

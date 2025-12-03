@@ -40,6 +40,14 @@ public class CutIngredientPieces : MonoBehaviour
 
         [Tooltip("Resistencia al movimiento (0 = sin resistencia, 1 = mucha resistencia)")]
         public float pieceDrag = 0.5f;
+
+        [Header("Collider de Agarre")]
+        [Tooltip("Agregar un collider extra grande como trigger solo para facilitar el agarre")]
+        public bool addGrabTrigger = true;
+
+        [Tooltip("Multiplicador del tamaño del trigger de agarre (más grande = más fácil agarrar)")]
+        [Range(1.5f, 5f)]
+        public float grabTriggerMultiplier = 3.0f;
     }
 
     [Header("Configuración de Pedazos")]
@@ -120,8 +128,6 @@ public class CutIngredientPieces : MonoBehaviour
 
     void SpawnPiecesRandom(Vector3 centerPosition)
     {
-        Debug.Log($"[SPAWN RANDOM] Centro: {centerPosition}, Cantidad: {configuration.pieceCount}, Area: {configuration.spawnArea}");
-
         for (int i = 0; i < configuration.pieceCount; i++)
         {
             // Posición aleatoria dentro del área
@@ -132,11 +138,6 @@ public class CutIngredientPieces : MonoBehaviour
             );
 
             Vector3 spawnPos = centerPosition + randomOffset;
-
-            if (i == 0) // Solo mostrar la primera pieza para no llenar el log
-            {
-                Debug.Log($"[SPAWN RANDOM] Primera pieza en: {spawnPos}");
-            }
 
             // Rotación
             Quaternion rotation = configuration.randomRotation
@@ -196,14 +197,12 @@ public class CutIngredientPieces : MonoBehaviour
         }
 
         GameObject piece = Instantiate(prefab, position, rotation, transform);
-        Debug.Log($"[CutIngredientPieces] Instanciada la pieza '{piece.name}' desde el prefab '{prefab.name}'.");
 
         // --- Comprobación de Rigidbody ---
         Rigidbody rb = piece.GetComponent<Rigidbody>();
         if (rb == null)
         {
             rb = piece.AddComponent<Rigidbody>();
-            Debug.LogWarning($"[CutIngredientPieces] El prefab '{prefab.name}' no tenía Rigidbody. Se ha añadido uno.");
         }
 
         // --- Comprobación de Collider ---
@@ -211,12 +210,52 @@ public class CutIngredientPieces : MonoBehaviour
         if (col == null)
         {
             col = piece.AddComponent<BoxCollider>();
-            Debug.LogWarning($"[CutIngredientPieces] El prefab '{prefab.name}' no tenía Collider. Se ha añadido un BoxCollider por defecto.");
         }
         if (col is MeshCollider meshCol && !meshCol.convex)
         {
             meshCol.convex = true;
-            Debug.LogWarning($"[CutIngredientPieces] El MeshCollider en '{prefab.name}' no era convexo. Se ha corregido a 'convex = true'.");
+        }
+
+        // --- AGREGAR COLLIDER EXTRA GRANDE COMO TRIGGER PARA FACILITAR AGARRE ---
+        if (configuration.addGrabTrigger)
+        {
+            GameObject triggerChild = new GameObject("GrabTrigger");
+            triggerChild.transform.SetParent(piece.transform);
+            triggerChild.transform.localPosition = Vector3.zero;
+            triggerChild.transform.localRotation = Quaternion.identity;
+            triggerChild.layer = piece.layer;
+
+            // Copiar y agrandar el collider
+            if (col is BoxCollider boxCol)
+            {
+                BoxCollider triggerBox = triggerChild.AddComponent<BoxCollider>();
+                triggerBox.center = boxCol.center;
+                triggerBox.size = boxCol.size * configuration.grabTriggerMultiplier;
+                
+                // Si es muy plano, hacerlo más grueso
+                if (triggerBox.size.y < 0.03f)
+                {
+                    Vector3 size = triggerBox.size;
+                    size.y = 0.03f;
+                    triggerBox.size = size;
+                }
+                
+                triggerBox.isTrigger = true;
+            }
+            else if (col is SphereCollider sphereCol)
+            {
+                SphereCollider triggerSphere = triggerChild.AddComponent<SphereCollider>();
+                triggerSphere.center = sphereCol.center;
+                triggerSphere.radius = sphereCol.radius * configuration.grabTriggerMultiplier;
+                triggerSphere.isTrigger = true;
+            }
+            else
+            {
+                // Para otros tipos, usar BoxCollider genérico
+                BoxCollider triggerBox = triggerChild.AddComponent<BoxCollider>();
+                triggerBox.size = Vector3.one * 0.05f * configuration.grabTriggerMultiplier;
+                triggerBox.isTrigger = true;
+            }
         }
         
         // Empezar como kinemático y desactivar collider para evitar explosiones
@@ -230,15 +269,6 @@ public class CutIngredientPieces : MonoBehaviour
         // --- Ignorar Colisión con el Cuchillo ---
         List<Collider> knifeColliders = new List<Collider>();
         GameObject[] knives = GameObject.FindGameObjectsWithTag("Knife");
-
-        if (knives.Length == 0)
-        {
-            Debug.LogError("[CutIngredientPieces] ¡NO SE ENCONTRÓ NINGÚN CUCHILLO! Asegúrate de que tu cuchillo (o su filo) tiene el Tag 'Knife'. Las piezas podrían salir volando.");
-        }
-        else
-        {
-            Debug.Log($"[CutIngredientPieces] Se encontraron {knives.Length} objeto(s) con el Tag 'Knife'. Procediendo a ignorar sus colliders.");
-        }
 
         foreach (GameObject knife in knives)
         {
@@ -263,20 +293,12 @@ public class CutIngredientPieces : MonoBehaviour
     {
         yield return new WaitForSeconds(delay);
 
-        if (piece == null)
-        {
-            Debug.LogError("[CutIngredientPieces] La pieza fue destruida antes de poder activar su física.");
-            yield break;
-        }
+        if (piece == null) yield break;
 
         Rigidbody rb = piece.GetComponent<Rigidbody>();
         Collider col = piece.GetComponent<Collider>();
 
-        if (col == null || rb == null)
-        {
-            Debug.LogError($"[CutIngredientPieces] La pieza '{piece.name}' no tiene Rigidbody o Collider. No se puede activar la física.");
-            yield break;
-        }
+        if (col == null || rb == null) yield break;
 
         // IMPORTANTE: Ignorar colisiones con TODOS los colliders del cuchillo
         foreach (Collider knifeCol in knifeColliders)
@@ -286,7 +308,6 @@ public class CutIngredientPieces : MonoBehaviour
                 Physics.IgnoreCollision(col, knifeCol, true);
             }
         }
-        Debug.Log($"[CutIngredientPieces] Ignorando colisión entre '{piece.name}' y {knifeColliders.Count} colliders de cuchillo.");
 
         // Activar collider
         col.enabled = true;
@@ -296,8 +317,6 @@ public class CutIngredientPieces : MonoBehaviour
         rb.useGravity = true;
         rb.velocity = Vector3.zero;
         rb.angularVelocity = Vector3.zero;
-        
-        Debug.Log($"[CutIngredientPieces] Física activada en '{piece.name}'.");
 
         // Restaurar colisiones después de un tiempo
         if (knifeColliders.Count > 0)
@@ -314,12 +333,11 @@ public class CutIngredientPieces : MonoBehaviour
 
         foreach (Collider ignored in ignoredColliders)
         {
-            if (ignored != null && pieceCollider != null) // Doble chequeo por si algo se destruyó
+            if (ignored != null && pieceCollider != null)
             {
                 Physics.IgnoreCollision(pieceCollider, ignored, false);
             }
         }
-        Debug.Log($"[CutIngredientPieces] Colisiones con el cuchillo restauradas para '{pieceCollider.gameObject.name}'.");
     }
 
     void Update()
@@ -402,14 +420,12 @@ public class CutIngredientPieces : MonoBehaviour
 
         if (leftPinchDown || rightPinchDown)
         {
-            Debug.Log("[CUT] Pinch detectado!");
             return true;
         }
 
         // Método 2: Detectar con Button.One/Two (alternativo)
         if (OVRInput.GetDown(OVRInput.Button.One) || OVRInput.GetDown(OVRInput.Button.Two))
         {
-            Debug.Log("[CUT] Button detectado!");
             return true;
         }
 
@@ -420,8 +436,6 @@ public class CutIngredientPieces : MonoBehaviour
     {
         if (isGrabbed || pieces.Count == 0)
             return;
-
-        Debug.Log($"[CUT] Agarrando {pieces.Count} pedazos con {hand.name}");
 
         isGrabbed = true;
         grabTransform = hand;
@@ -486,14 +500,12 @@ public class CutIngredientPieces : MonoBehaviour
 
         if (leftPinchUp || rightPinchUp)
         {
-            Debug.Log("[CUT] Pinch soltado!");
             return true;
         }
 
         // Método alternativo con Button.One/Two
         if (OVRInput.GetUp(OVRInput.Button.One) || OVRInput.GetUp(OVRInput.Button.Two))
         {
-            Debug.Log("[CUT] Button soltado!");
             return true;
         }
 
@@ -511,8 +523,6 @@ public class CutIngredientPieces : MonoBehaviour
     {
         if (!isGrabbed)
             return;
-
-        Debug.Log($"[CUT] Soltando {pieces.Count} pedazos");
 
         isGrabbed = false;
         grabTransform = null;
