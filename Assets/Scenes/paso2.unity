@@ -2904,23 +2904,6 @@ MeshCollider:
   m_Convex: 0
   m_CookingOptions: 30
   m_Mesh: {fileID: -2432090755550338912, guid: 39831914b94deab408418c25fe7115f4, type: 3}
---- !u!114 &366895801
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 366895793}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 1d237fdece0e4314f927c154a22def90, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  radioBowl: 0.2
-  profundidadBowl: 0.15
-  fuerzaContencion: 20
-  tagIngredientes: Ingredient
-  mostrarGizmos: 1
 --- !u!1001 &389599044
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -5388,9 +5371,6 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 39831914b94deab408418c25fe7115f4, type: 3}
       insertIndex: -1
       addedObject: {fileID: 366895800}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 39831914b94deab408418c25fe7115f4, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 366895801}
   m_SourcePrefab: {fileID: 100100000, guid: 39831914b94deab408418c25fe7115f4, type: 3}
 --- !u!1 &914724985
 GameObject:
