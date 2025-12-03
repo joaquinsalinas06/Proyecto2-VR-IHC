@@ -29,6 +29,12 @@ public class CuttingBoardSnapZone : MonoBehaviour
         [Tooltip("Si true, usa corte de una sola línea (ej: limón). Si false y no usa grid, corte simple tradicional")]
         public bool useSingleLineCut = false;
 
+        [Tooltip("Si true, usa corte progresivo con curvas (ej: cebolla). Múltiples líneas curvas")]
+        public bool useProgressiveCurveCut = false;
+
+        [Tooltip("Si true, usa corte por múltiples contactos (ej: ají). Solo requiere tocar varias veces con el cuchillo")]
+        public bool useMultiContactCut = false;
+
         [Header("Pedazos Cortados")]
         public CutIngredientPieces.PieceConfiguration pieceConfiguration;
 
@@ -38,6 +44,8 @@ public class CuttingBoardSnapZone : MonoBehaviour
         [HideInInspector] public CutIngredientPieces cutPieces; // Referencia a los pedazos
         [HideInInspector] public ProgressiveCutGrid progressiveGrid; // Referencia a la grilla progresiva
         [HideInInspector] public SingleLineCut singleLineCut; // Referencia al corte simple de una línea
+        [HideInInspector] public ProgressiveCurveCut progressiveCurveCut; // Referencia al corte progresivo con curvas
+        [HideInInspector] public MultiContactCut multiContactCut; // Referencia al corte por múltiples contactos
     }
 
     [Header("Snap Point")]
@@ -213,6 +221,44 @@ public class CuttingBoardSnapZone : MonoBehaviour
                 Debug.LogWarning($"[SNAP] {ingredient.name} tiene useSingleLineCut=true pero no tiene componente SingleLineCut!");
             }
         }
+        // Si usa corte progresivo con curvas, activarlo
+        else if (step.useProgressiveCurveCut)
+        {
+            ProgressiveCurveCut curveCut = ingredient.GetComponent<ProgressiveCurveCut>();
+            if (curveCut != null)
+            {
+                step.progressiveCurveCut = curveCut;
+                curveCut.Activate();
+
+                // Suscribirse al evento de completado
+                curveCut.OnAllCutsCompleted = () => OnProgressiveCurveCutCompleted(step);
+
+                Debug.Log($"[SNAP] Corte progresivo con curvas activado para {ingredient.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[SNAP] {ingredient.name} tiene useProgressiveCurveCut=true pero no tiene componente ProgressiveCurveCut!");
+            }
+        }
+        // Si usa corte por múltiples contactos, activarlo
+        else if (step.useMultiContactCut)
+        {
+            MultiContactCut multiCut = ingredient.GetComponent<MultiContactCut>();
+            if (multiCut != null)
+            {
+                step.multiContactCut = multiCut;
+                multiCut.Activate();
+
+                // Suscribirse al evento de completado
+                multiCut.OnCutCompleted = () => OnMultiContactCutCompleted(step);
+
+                Debug.Log($"[SNAP] Corte por múltiples contactos activado para {ingredient.name}");
+            }
+            else
+            {
+                Debug.LogWarning($"[SNAP] {ingredient.name} tiene useMultiContactCut=true pero no tiene componente MultiContactCut!");
+            }
+        }
 
         // Feedback
         PlaySnapSound();
@@ -320,6 +366,86 @@ public class CuttingBoardSnapZone : MonoBehaviour
         PlayCutCompleteEffects(ingredientPosition);
 
         // GENERAR PEDAZOS CORTADOS usando el sistema centralizado
+        SpawnCutPieces(step, ingredientPosition);
+
+        // DESTRUIR el ingrediente original (desaparece)
+        Destroy(step.placedObject);
+        step.placedObject = null;
+
+        // Avanzar al siguiente paso
+        currentStep++;
+
+        if (currentStep < cuttingSteps.Length)
+        {
+            Debug.Log($"[SNAP] Avanzando al paso {currentStep}: {cuttingSteps[currentStep].stepName}");
+            UpdateVisualIndicator();
+        }
+        else
+        {
+            Debug.Log("[SNAP] ¡Todos los pasos completados!");
+            UpdateVisualIndicator();
+        }
+    }
+
+    /// <summary>
+    /// Llamado cuando se completa un corte progresivo con curvas (ej: cebolla)
+    /// </summary>
+    void OnProgressiveCurveCutCompleted(CuttingStep step)
+    {
+        if (step == null || step.isCut)
+            return;
+
+        Debug.Log($"[SNAP] ¡Corte progresivo con curvas completado! Paso {currentStep} completado: {step.stepName}");
+
+        step.isCut = true;
+
+        // Guardar posición del ingrediente antes de destruirlo
+        Vector3 ingredientPosition = step.placedObject.transform.position;
+
+        // EFECTOS VISUALES Y DE AUDIO al completar el corte
+        PlayCutCompleteEffects(ingredientPosition);
+
+        // GENERAR PEDAZOS CORTADOS
+        SpawnCutPieces(step, ingredientPosition);
+
+        // DESTRUIR el ingrediente original (desaparece)
+        Destroy(step.placedObject);
+        step.placedObject = null;
+
+        // Avanzar al siguiente paso
+        currentStep++;
+
+        if (currentStep < cuttingSteps.Length)
+        {
+            Debug.Log($"[SNAP] Avanzando al paso {currentStep}: {cuttingSteps[currentStep].stepName}");
+            UpdateVisualIndicator();
+        }
+        else
+        {
+            Debug.Log("[SNAP] ¡Todos los pasos completados!");
+            UpdateVisualIndicator();
+        }
+    }
+
+    /// <summary>
+    /// Llamado cuando se completa un corte por múltiples contactos (ej: ají)
+    /// </summary>
+    void OnMultiContactCutCompleted(CuttingStep step)
+    {
+        if (step == null || step.isCut)
+            return;
+
+        Debug.Log($"[SNAP] ¡Corte por múltiples contactos completado! Paso {currentStep} completado: {step.stepName}");
+
+        step.isCut = true;
+
+        // Guardar posición del ingrediente antes de destruirlo
+        Vector3 ingredientPosition = step.placedObject.transform.position;
+
+        // EFECTOS VISUALES Y DE AUDIO al completar el corte
+        PlayCutCompleteEffects(ingredientPosition);
+
+        // GENERAR PEDAZOS CORTADOS
         SpawnCutPieces(step, ingredientPosition);
 
         // DESTRUIR el ingrediente original (desaparece)
