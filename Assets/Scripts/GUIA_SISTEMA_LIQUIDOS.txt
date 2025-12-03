@@ -1,0 +1,253 @@
+# Guía de Configuración: Sistema de Exprimido de Limón y Líquido en Bowl
+
+## 📋 Resumen
+Este sistema permite:
+1. **Exprimir el limón** con deformación visual realista
+2. **Generar jugo** que se acumula en el bowl
+3. **Visualizar líquido** con mesh procedural y efectos de ondas
+
+---
+
+## 🍋 Configuración del Limón (LemonSqueezer)
+
+### Paso 1: Agregar el componente
+1. Selecciona el GameObject del limón en la escena
+2. Add Component → `LemonSqueezer`
+
+### Paso 2: Configurar parámetros básicos
+```
+Fuerza Mínima Exprimido: 2.0 (ajustar según sensibilidad deseada)
+Deformación Máxima: 0.5 (0-1, donde 1 es deformación total)
+Velocidad Deformación: 2.0
+Velocidad Recuperación: 1.0
+```
+
+### Paso 3: Configurar generación de jugo
+```
+Tasa Generación Jugo: 10.0 (unidades por segundo)
+Jugo Máximo: 100.0 (total que puede generar el limón)
+```
+
+### Paso 4: Tag del exprimidor
+- Asegúrate de que el objeto que exprime (mano VR, exprimidor) tenga el tag correcto
+- Por defecto usa tag `"Hand"`
+- Puedes cambiarlo en el campo `Tag Exprimidor`
+
+### Paso 5: Partículas (Opcional)
+Para crear partículas de jugo:
+
+1. **Crear sistema de partículas:**
+   - Click derecho en Hierarchy → Effects → Particle System
+   - Nombrar: "JuiceParticles"
+
+2. **Configurar partículas:**
+   ```
+   Duration: 1.0
+   Looping: ✓ (activado)
+   Start Lifetime: 0.5
+   Start Speed: 0.1
+   Start Size: 0.005 (5mm)
+   Start Color: Amarillo (255, 255, 0)
+   ```
+
+3. **Emission:**
+   ```
+   Rate over Time: 20
+   ```
+
+4. **Shape:**
+   ```
+   Shape: Cone
+   Angle: 15
+   Radius: 0.01
+   ```
+
+5. **Convertir a Prefab:**
+   - Arrastra "JuiceParticles" a la carpeta Assets/Prefabs
+   - Asignar el prefab al campo `Particulas Jugo Prefab` en LemonSqueezer
+
+6. **Punto de spawn (Opcional):**
+   - Crear Empty GameObject hijo del limón
+   - Nombrar: "JuiceSpawnPoint"
+   - Posicionar en la parte inferior del limón
+   - Asignar al campo `Punto Spawn Jugo`
+
+---
+
+## 🥣 Configuración del Bowl (BowlLiquidManager)
+
+### Paso 1: Crear GameObject para el líquido
+1. Click derecho en el GameObject del Bowl → Create Empty
+2. Nombrar: "Liquid"
+3. Posición local: (0, 0, 0)
+
+### Paso 2: Agregar componentes
+1. Selecciona "Liquid"
+2. Add Component → `Mesh Filter`
+3. Add Component → `Mesh Renderer`
+4. Add Component → `BowlLiquidManager`
+
+### Paso 3: Configurar parámetros del bowl
+**IMPORTANTE:** Los valores deben coincidir con `BowlColliderSetup`:
+```
+Radio Bowl: 0.20 (mismo que radioBowlSuperior)
+Profundidad Bowl: 0.15 (mismo que profundidadBowl)
+```
+
+### Paso 4: Configurar líquido
+```
+Nivel Líquido: 0 (inicial vacío)
+Nivel Máximo: 100
+Velocidad Animación: 2.0
+Color Líquido: Amarillo translúcido (R:1, G:0.9, B:0.6, A:0.7)
+```
+
+### Paso 5: Configurar visual
+```
+Resolución Circular: 32 (más = más suave, pero más costoso)
+Offset Vertical: 0.01
+```
+
+### Paso 6: Efectos opcionales
+```
+Mezclar Colores: ✓ (activado para mezclar ingredientes)
+Velocidad Mezcla Color: 1.0
+Activar Ondas: ✓ (efecto de ondas al agregar líquido)
+Amplitud Ondas: 0.01
+Frecuencia Ondas: 5.0
+```
+
+### Paso 7: Material del líquido
+El script crea un material automáticamente, pero puedes crear uno personalizado:
+
+1. **Crear material:**
+   - Click derecho en Assets → Create → Material
+   - Nombrar: "LiquidMaterial"
+
+2. **Configurar shader:**
+   - Shader: Standard
+   - Rendering Mode: Transparent
+   - Albedo: Color amarillo translúcido
+   - Smoothness: 0.8
+   - Metallic: 0.1
+
+3. **Asignar:**
+   - Arrastrar material al campo `Material Líquido`
+
+---
+
+## 🎮 Uso en Runtime
+
+### Exprimir el limón:
+1. Agarrar el limón con la mano VR
+2. Presionar contra el exprimidor o superficie
+3. El limón se deformará y generará jugo
+4. Las partículas aparecerán (si están configuradas)
+
+### El líquido en el bowl:
+- Se llenará automáticamente cuando el limón esté cerca (< 50cm)
+- El nivel subirá gradualmente
+- El color se mezclará si agregas diferentes ingredientes
+- Ondas aparecerán al agregar líquido
+
+### Métodos públicos disponibles:
+
+**LemonSqueezer:**
+```csharp
+lemonSqueezer.Exprimir(true/false);  // Exprimir programáticamente
+float jugo = lemonSqueezer.ObtenerJugoRestante();
+float porcentaje = lemonSqueezer.ObtenerPorcentajeJugo();
+bool exprimiendo = lemonSqueezer.EstaExprimiendo();
+```
+
+**BowlLiquidManager:**
+```csharp
+bowlLiquid.AgregarLiquido(cantidad, color);  // Agregar líquido manualmente
+bowlLiquid.VaciarBowl();  // Vaciar completamente
+bowlLiquid.EstablecerNivel(50);  // Establecer nivel directo
+float nivel = bowlLiquid.ObtenerNivelActual();
+bool lleno = bowlLiquid.EstaLleno();
+```
+
+---
+
+## 🔧 Troubleshooting
+
+### El limón no se deforma:
+- ✓ Verificar que el limón tenga un MeshFilter con mesh asignado
+- ✓ Verificar que el objeto exprimidor tenga el tag correcto
+- ✓ Aumentar `Fuerza Mínima Exprimido` si es muy sensible
+- ✓ Activar `Usar Velocidad Colision` para mejor detección
+
+### No se genera jugo:
+- ✓ Verificar que `Jugo Restante` no esté en 0
+- ✓ Verificar que el bowl esté cerca (< 50cm)
+- ✓ Verificar que el bowl tenga el componente `BowlLiquidManager`
+
+### El líquido no aparece:
+- ✓ Verificar que el GameObject "Liquid" tenga MeshFilter y MeshRenderer
+- ✓ Verificar que `Nivel Líquido` sea > 0
+- ✓ Verificar que el material sea transparente
+- ✓ Revisar la posición del objeto Liquid (debe ser hijo del Bowl)
+
+### Las partículas no aparecen:
+- ✓ Verificar que el prefab esté asignado
+- ✓ Verificar que el sistema de partículas esté configurado correctamente
+- ✓ Verificar que `Play On Awake` esté desactivado en el prefab
+
+---
+
+## 💡 Tips de Optimización
+
+1. **Reducir resolución circular** del líquido si hay problemas de rendimiento (16-24 es suficiente)
+2. **Desactivar ondas** si no son necesarias
+3. **Limitar partículas** a 20-30 por segundo máximo
+4. **Usar LOD** para el mesh del limón si es muy complejo
+
+---
+
+## 🎨 Personalización Avanzada
+
+### Cambiar forma de deformación del limón:
+Editar en `LemonSqueezer.cs`, método `AplicarDeformacion()`:
+```csharp
+// Líneas 174-177
+float factorY = 1.5f;   // Deformación vertical (aplastar)
+float factorXZ = 0.3f;  // Deformación horizontal (expandir)
+```
+
+### Cambiar distancia de detección bowl-limón:
+Editar en `LemonSqueezer.cs`, método `NotificarGeneracionJugo()`:
+```csharp
+// Línea 199
+if (distancia < 0.5f) // Cambiar 0.5f a la distancia deseada en metros
+```
+
+### Crear diferentes tipos de líquidos:
+```csharp
+// Agua
+bowlLiquid.AgregarLiquido(20, new Color(0.7f, 0.9f, 1f, 0.5f));
+
+// Jugo de limón
+bowlLiquid.AgregarLiquido(15, new Color(1f, 0.9f, 0.6f, 0.7f));
+
+// Leche
+bowlLiquid.AgregarLiquido(30, new Color(1f, 1f, 0.95f, 0.9f));
+```
+
+---
+
+## ✅ Checklist de Configuración Completa
+
+- [ ] LemonSqueezer agregado al limón
+- [ ] Tag correcto asignado al exprimidor
+- [ ] Partículas creadas y asignadas (opcional)
+- [ ] GameObject "Liquid" creado como hijo del Bowl
+- [ ] BowlLiquidManager configurado con valores correctos
+- [ ] Material del líquido configurado (transparente)
+- [ ] Probado en Play Mode
+- [ ] Ajustados parámetros visuales al gusto
+
+---
+
+**¡Listo!** Ahora deberías poder exprimir el limón y ver cómo se llena el bowl con líquido. 🍋🥣
