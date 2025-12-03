@@ -23,6 +23,19 @@ public class GenericCutDetector : MonoBehaviour
 
     private bool isObjectInside = false;
 
+    void Awake()
+    {
+        // CRÍTICO: Inicializar UnityEvents cuando se añade el componente en runtime
+        if (OnObjectEnter == null)
+        {
+            OnObjectEnter = new UnityEvent();
+        }
+        if (OnObjectExit == null)
+        {
+            OnObjectExit = new UnityEvent();
+        }
+    }
+
     void OnTriggerEnter(Collider other)
     {
         if (isObjectInside) return; // Ya hay un objeto dentro
@@ -34,7 +47,10 @@ public class GenericCutDetector : MonoBehaviour
         if (tagMatch || nameMatch)
         {
             isObjectInside = true;
-            OnObjectEnter.Invoke(); // Disparar el evento de entrada
+            if (OnObjectEnter != null)
+            {
+                OnObjectEnter.Invoke(); // Disparar el evento de entrada
+            }
             
             // Debug.Log($"'{other.name}' entró en el detector.");
         }
@@ -51,7 +67,10 @@ public class GenericCutDetector : MonoBehaviour
         if (tagMatch || nameMatch)
         {
             isObjectInside = false;
-            OnObjectExit.Invoke(); // Disparar el evento de salida
+            if (OnObjectExit != null)
+            {
+                OnObjectExit.Invoke(); // Disparar el evento de salida
+            }
 
             // Debug.Log($"'{other.name}' salió del detector.");
         }

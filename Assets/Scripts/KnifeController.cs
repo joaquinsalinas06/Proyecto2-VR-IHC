@@ -103,7 +103,33 @@ public class KnifeController : MonoBehaviour
             return;
         }
 
-        // ¡Realizar el corte!
+        // VERIFICAR SI EL INGREDIENTE USA SISTEMA PROGRESIVO/MULTI-CONTACTO
+        // Si usa estos sistemas, NO cortarlo directamente - ellos manejan el corte
+        GameObject ingredient = other.gameObject;
+        
+        // Verificar si tiene algún sistema de corte personalizado
+        if (ingredient.GetComponent<ProgressiveCutGrid>() != null)
+        {
+            // Tiene grilla progresiva - ignorar, la grilla maneja el corte
+            return;
+        }
+        if (ingredient.GetComponent<ProgressiveCurveCut>() != null)
+        {
+            // Tiene curva progresiva - ignorar, la curva maneja el corte
+            return;
+        }
+        if (ingredient.GetComponent<SingleLineCut>() != null)
+        {
+            // Tiene corte de línea - ignorar, la línea maneja el corte
+            return;
+        }
+        if (ingredient.GetComponent<MultiContactCut>() != null)
+        {
+            // Tiene multi-contacto - ignorar, el sistema maneja el corte
+            return;
+        }
+        
+        // ¡Solo cortar si NO tiene ningún sistema especial!
         Debug.Log($"[KNIFE] ¡Cortando {other.gameObject.name}! Velocidad: {currentVelocity:F2} m/s");
         PerformCut(other.gameObject, other.ClosestPoint(transform.position));
     }

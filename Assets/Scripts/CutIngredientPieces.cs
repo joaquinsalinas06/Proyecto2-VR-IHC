@@ -46,8 +46,8 @@ public class CutIngredientPieces : MonoBehaviour
         public bool addGrabTrigger = true;
 
         [Tooltip("Multiplicador del tamaño del trigger de agarre (más grande = más fácil agarrar)")]
-        [Range(1.5f, 5f)]
-        public float grabTriggerMultiplier = 3.0f;
+        [Range(1.5f, 8f)]
+        public float grabTriggerMultiplier = 6.0f;
     }
 
     [Header("Configuración de Pedazos")]
@@ -275,8 +275,8 @@ public class CutIngredientPieces : MonoBehaviour
             knifeColliders.AddRange(knife.GetComponentsInChildren<Collider>());
         }
 
-        // Activar física después de un breve delay
-        StartCoroutine(EnablePhysicsAfterDelay(piece, 0.3f, knifeColliders));
+        // Activar física después de un delay MÁS CORTO para que sean agarrables rápido
+        StartCoroutine(EnablePhysicsAfterDelay(piece, 0.1f, knifeColliders));
 
         // Guardar renderer para highlight
         Renderer renderer = piece.GetComponent<Renderer>();
@@ -309,10 +309,13 @@ public class CutIngredientPieces : MonoBehaviour
             }
         }
 
-        // Activar collider
+        // CRÍTICO: Activar collider PRIMERO para que sea agarrable
         col.enabled = true;
         
-        // Activar física
+        // Esperar un frame adicional para asegurar que el collider esté completamente registrado
+        yield return null;
+        
+        // Activar física DESPUÉS de que el collider esté listo
         rb.isKinematic = false;
         rb.useGravity = true;
         rb.velocity = Vector3.zero;
@@ -321,7 +324,7 @@ public class CutIngredientPieces : MonoBehaviour
         // Restaurar colisiones después de un tiempo
         if (knifeColliders.Count > 0)
         {
-            StartCoroutine(RestoreCollisions(col, knifeColliders, 1.5f));
+            StartCoroutine(RestoreCollisions(col, knifeColliders, 1.0f));
         }
     }
 

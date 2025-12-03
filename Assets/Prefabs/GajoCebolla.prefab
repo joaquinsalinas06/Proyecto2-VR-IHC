@@ -73,9 +73,6 @@ PrefabInstance:
       addedObject: {fileID: -6486303413539392759}
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 617aad528e4a30942a71ab3b5b7de9a6, type: 3}
       insertIndex: -1
-      addedObject: {fileID: -5724172600880212213}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 617aad528e4a30942a71ab3b5b7de9a6, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 8275150653145812908}
   m_SourcePrefab: {fileID: 100100000, guid: 617aad528e4a30942a71ab3b5b7de9a6, type: 3}
 --- !u!1 &1561709306671499105 stripped
@@ -110,28 +107,6 @@ Rigidbody:
   m_Interpolate: 0
   m_Constraints: 0
   m_CollisionDetection: 0
---- !u!114 &-5724172600880212213
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1561709306671499105}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43f86b14a27b52f4f9298c33015b5c26, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _transferOnSecondSelection: 0
-  _addNewPointsToFront: 0
-  _forwardElement: {fileID: 0}
-  _oneGrabTransformer: {fileID: 0}
-  _twoGrabTransformer: {fileID: 0}
-  _targetTransform: {fileID: 0}
-  _maxGrabPoints: -1
-  _rigidbody: {fileID: -6486303413539392759}
-  _kinematicWhileSelected: 1
-  _throwWhenUnselected: 1
 --- !u!65 &8275150653145812908
 BoxCollider:
   m_ObjectHideFlags: 0

@@ -66,6 +66,8 @@ public class ProgressiveCurveCut : MonoBehaviour
     [Header("Detección de Cuchillo")]
     [Tooltip("Tag del cuchillo")]
     public string knifeTag = "Knife";
+    [Tooltip("Nombre alternativo del objeto cuchillo (para búsqueda por nombre)")]
+    public string knifeNameContains = "Blade";
     [Tooltip("Velocidad mínima del cuchillo para contar como corte")]
     public float minKnifeVelocity = 0.1f;
 
@@ -105,10 +107,53 @@ public class ProgressiveCurveCut : MonoBehaviour
     {
         if (isActive) return;
         
+        // Debug: Mostrar configuración actual
+        Debug.Log($"[PROGRESSIVE CURVE] 🔍 Intentando activar en '{gameObject.name}'...");
+        Debug.Log($"[PROGRESSIVE CURVE] - curvedCutLines: {(curvedCutLines == null ? "NULL" : $"Array con {curvedCutLines.Length} elementos")}");
+        
+        // Validación exhaustiva: verificar que exista el array
         if (curvedCutLines == null || curvedCutLines.Length == 0)
         {
-            Debug.LogError("[PROGRESSIVE CURVE] No hay líneas de corte configuradas! Agrega al menos una línea en el Inspector.");
+            Debug.LogError($"[PROGRESSIVE CURVE] ❌ ¡CONFIGURACIÓN INCOMPLETA en '{gameObject.name}'!\n" +
+                          "El array 'Curved Cut Lines' está vacío o es null.\n\n" +
+                          "SOLUCIÓN:\n" +
+                          "1. Selecciona el GameObject de la cebolla en Unity\n" +
+                          "2. Encuentra el componente 'ProgressiveCurveCut'\n" +
+                          "3. Establece 'Curved Cut Lines' → Size = 1\n" +
+                          "4. Expande 'Element 0' y configura los 'Curve Points'\n" +
+                          "5. Establece 'Curve Points' → Size = 5 (o más)\n" +
+                          "6. Configura cada punto de la curva\n\n" +
+                          "SIN ESTA CONFIGURACIÓN, LA CEBOLLA SE CORTARÁ INSTANTÁNEAMENTE.");
+            
+            // Desactivar el componente para evitar comportamiento erróneo
+            enabled = false;
             return;
+        }
+
+        // CRÍTICO: Verificar que cada línea tenga curvePoints configurados
+        for (int i = 0; i < curvedCutLines.Length; i++)
+        {
+            int pointCount = (curvedCutLines[i].curvePoints == null) ? 0 : curvedCutLines[i].curvePoints.Length;
+            Debug.Log($"[PROGRESSIVE CURVE] - Element {i}: {pointCount} curve points");
+            
+            if (curvedCutLines[i].curvePoints == null || curvedCutLines[i].curvePoints.Length < 2)
+            {
+                Debug.LogError($"[PROGRESSIVE CURVE] ❌ ¡ERROR en '{gameObject.name}'!\n" +
+                              $"La línea {i} tiene {pointCount} Curve Points (necesita mínimo 2).\n\n" +
+                              "SOLUCIÓN:\n" +
+                              $"1. Expande 'Curved Cut Lines' → Element {i}\n" +
+                              "2. Establece 'Curve Points' → Size = 5 (recomendado para Bézier)\n" +
+                              "3. Configura las coordenadas de cada punto\n\n" +
+                              "Ejemplo para una curva suave:\n" +
+                              "  Point 0: (0.04, 0.06, 0.09)\n" +
+                              "  Point 1: (0.15, 0.02, 0.09)\n" +
+                              "  Point 2: (0.11, -0.07, 0.09)\n" +
+                              "  Point 3: (0.09, -0.15, 0.09)\n" +
+                              "  Point 4: (0.01, -0.18, 0.09)");
+                
+                enabled = false;
+                return;
+            }
         }
 
         isActive = true;
@@ -116,8 +161,7 @@ public class ProgressiveCurveCut : MonoBehaviour
         ResetAllLines();
         ShowCurrentCurve();
 
-        if (showDebugInfo)
-            Debug.Log($"[PROGRESSIVE CURVE] Sistema activado. Mostrando curva {currentLineIndex + 1}.");
+        Debug.Log($"[PROGRESSIVE CURVE] ✅ Sistema activado en '{gameObject.name}'. Mostrando curva {currentLineIndex + 1}/{curvedCutLines.Length}.");
     }
 
     public void Deactivate()
@@ -219,8 +263,14 @@ public class ProgressiveCurveCut : MonoBehaviour
 
             // Añadir el detector genérico y conectar los eventos
             var detector = segment.AddComponent<GenericCutDetector>();
-            detector.objectTag = this.knifeTag;
-            detector.objectNameContains = "Blade"; // Por si acaso
+            if (!string.IsNullOrEmpty(knifeTag))
+            {
+                detector.objectTag = knifeTag;
+            }
+            if (!string.IsNullOrEmpty(knifeNameContains))
+            {
+                detector.objectNameContains = knifeNameContains;
+            }
             
             detector.OnObjectEnter.AddListener(HandleKnifeEnter);
             detector.OnObjectExit.AddListener(HandleKnifeExit);

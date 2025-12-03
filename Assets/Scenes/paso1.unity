@@ -1402,7 +1402,7 @@ MonoBehaviour:
     useLocalRotation: 1
   - ingredientTag: Aji
     positionOffset: {x: 0, y: 0, z: 0}
-    rotation: {x: 0, y: 0, z: 0}
+    rotation: {x: 0, y: 90, z: 0}
     useLocalRotation: 1
   cuttingSteps:
   - stepName: Pescado
@@ -4610,6 +4610,7 @@ MonoBehaviour:
   initialLineColor: {r: 0, g: 1, b: 1, a: 1}
   lineEmissionIntensity: 4.99
   knifeTag: Knife
+  knifeNameContains: Blade
   minKnifeVelocity: 0.1
   lineCompleteSound: {fileID: 0}
   cuttingSound: {fileID: 8300000, guid: 17bf8a5eaabfc6949a4f8df6665f5d9c, type: 3}
@@ -6417,6 +6418,10 @@ PrefabInstance:
       propertyPath: m_Center.y
       value: -0.018762194
       objectReference: {fileID: 0}
+    - target: {fileID: 2080797359510986423, guid: f2816651819917b40ad62a46acf8efbb, type: 3}
+      propertyPath: m_IsTrigger
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 2345044518353406705, guid: f2816651819917b40ad62a46acf8efbb, type: 3}
       propertyPath: m_Name
       value: Pescado Entero
@@ -6515,7 +6520,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 6802183420138353487, guid: f2816651819917b40ad62a46acf8efbb, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 1.4146
+      value: 1.472
       objectReference: {fileID: 0}
     - target: {fileID: 6802183420138353487, guid: f2816651819917b40ad62a46acf8efbb, type: 3}
       propertyPath: m_LocalPosition.z
